@@ -259,8 +259,14 @@ def build_surrogate_report(run_dir: Path, out: Path, title: str = "Surrogate (em
     parts = [f"<h1>{html.escape(title)}</h1>",
              f"<p class=muted>run {html.escape(str(run_dir))} · upload upscale x{hist['upscale']:g}</p>",
              _img_tag(_save(surrogate_plot(hist), png_dir, "surrogate.png"), "surrogate rounds")]
-    last = hist["rounds"][-1]
-    parts.append("<h2>Final round, real black-box results</h2><table><tr><th>clip</th><th>naive</th>"
+    def train_gain(r):
+        return np.mean([c["metrics"]["composite"] - hist["baselines"][k]["upscale_only"]["composite"]
+                        for k, c in r["clips"].items() if not c["holdout"]])
+
+    # model selection uses the training clips only; holdout numbers stay honest
+    last = max(hist["rounds"], key=train_gain)
+    parts.append(f"<h2>Selected round {last['round']} (best mean gain on training clips), real black-box results"
+                 "</h2><table><tr><th>clip</th><th>naive</th>"
                  "<th>upscale only</th><th>learned G</th><th>gain vs upscale only</th><th>|G(X)-X|</th></tr>")
     for clip, r in last["clips"].items():
         b = hist["baselines"][clip]
@@ -276,8 +282,10 @@ def build_surrogate_report(run_dir: Path, out: Path, title: str = "Surrogate (em
                                      "learned G": r["metrics"]}))
         try:
             src = Path(hist.get("sources", {}).get(clip) or content.CLIPS_DIR / f"{clip}.mkv")
+            tier = _tier_only({"platform": hist.get("platform", "sim:ugc_strict"), "clips": {clip: str(src)}},
+                              clip, hist["upscale"])
             fig = crops_figure(src, {
-                "upscale only": Path(b["upscale_only"]["workdir"]) / "playback.mp4",
+                "upscale only": Path(tier["workdir"]) / "playback.mp4",
                 "learned G": Path(r["workdir"]) / "playback.mp4",
             })
             parts.append(_img_tag(_save(fig, png_dir, f"surrogate_crops_{clip}.png"), clip))

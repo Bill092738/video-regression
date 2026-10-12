@@ -234,6 +234,7 @@ def run_loop(
         history.append(rec)
         torch.save({"E": E.state_dict(), "G": G.state_dict()}, out_dir / f"round{r}.pt")
         (out_dir / "history.json").write_text(json.dumps({"baselines": baselines, "rounds": history, "upscale": upscale,
+                                                          "platform": platform.name,
                                                           "settings": {"trust_weight": trust_weight,
                                                                        "max_residual": max_residual,
                                                                        "emulator_steps": emulator_steps,
