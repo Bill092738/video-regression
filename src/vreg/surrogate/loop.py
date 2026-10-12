@@ -115,7 +115,7 @@ def train_emulator(E, pairs: PairSet, steps: int, device: str, rng: random.Rando
 
 
 def train_generator(G, E, sources: list[np.ndarray], steps: int, device: str, rng: random.Random,
-                    lpips_net, lr: float, l1_weight: float, log) -> list[float]:
+                    lpips_net, lr: float, l1_weight: float, log, trust_weight: float = 0.0) -> list[float]:
     for p in E.parameters():
         p.requires_grad_(False)
     E.eval()
@@ -127,8 +127,12 @@ def train_generator(G, E, sources: list[np.ndarray], steps: int, device: str, rn
     losses = []
     for step in range(steps):
         x, _ = src_pairs.sample(8, rng, device)
-        y_hat = E(G(x).clamp(0, 1))
+        gx = G(x).clamp(0, 1)
+        y_hat = E(gx)
         loss = lpips_net(y_hat * 2 - 1, x * 2 - 1).mean() + l1_weight * F.l1_loss(y_hat, x)
+        if trust_weight:
+            # trust region: E is only accurate near data it has seen, so keep G(X) close to X
+            loss = loss + trust_weight * F.l1_loss(gx, x)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         opt.step()
@@ -156,6 +160,8 @@ def run_loop(
     generator_steps: int = 2000,
     finetune_fraction: float = 0.5,
     l1_weight: float = 1.0,
+    trust_weight: float = 0.0,
+    max_residual: float = 0.15,
     holdout: dict[str, Path] | None = None,
     seed: int = 0,
     log=lambda s: print(s, flush=True),
@@ -187,7 +193,7 @@ def run_loop(
     log("round 0: collecting random pre-compensation pairs from the black box")
     pairs = collect_random_pairs(clips, platform, upscale, n_variants, out_dir / "pairs", rng, log)
 
-    E, G = emulator().to(device), generator().to(device)
+    E, G = emulator().to(device), generator(max_residual=max_residual).to(device)
     history = []
     for r in range(rounds):
         t0 = time.perf_counter()
@@ -199,7 +205,8 @@ def run_loop(
         log(f"round {r}: train generator through frozen emulator ({g_steps} steps)")
         train_sources = [sources[c][::FRAME_STEP] for c in clips]
         g_loss = train_generator(G, E, train_sources, g_steps, device, rng, lpips_net,
-                                 lr=(1e-4 if r == 0 else 5e-5), l1_weight=l1_weight, log=log)
+                                 lr=(1e-4 if r == 0 else 5e-5), l1_weight=l1_weight, log=log,
+                                 trust_weight=trust_weight)
 
         rec = {"round": r, "emulator_l1": float(np.mean(e_loss[-200:])), "generator_loss": float(np.mean(g_loss[-200:])),
                "clips": {}}
@@ -227,6 +234,10 @@ def run_loop(
         history.append(rec)
         torch.save({"E": E.state_dict(), "G": G.state_dict()}, out_dir / f"round{r}.pt")
         (out_dir / "history.json").write_text(json.dumps({"baselines": baselines, "rounds": history, "upscale": upscale,
+                                                          "settings": {"trust_weight": trust_weight,
+                                                                       "max_residual": max_residual,
+                                                                       "emulator_steps": emulator_steps,
+                                                                       "generator_steps": generator_steps},
                                                           "sources": {c: str(p) for c, p in all_clips.items()}},
                                                          indent=2))
     return history
