@@ -7,7 +7,6 @@ import json
 import sys
 from pathlib import Path
 
-CLIP_DIR = Path("data/clips")
 RUNS = Path("runs")
 
 
@@ -40,7 +39,7 @@ def _clips(spec: str) -> dict[str, Path]:
     from . import content
 
     names = content.all_clip_names() if spec == "all" else [c for c in spec.split(",") if c]
-    return content.ensure_clips(names, CLIP_DIR)
+    return content.ensure_clips(names, content.CLIPS_DIR)
 
 
 def cmd_clips(args) -> int:
@@ -81,10 +80,21 @@ def cmd_optimize(args) -> int:
     return 0
 
 
-def cmd_report(args) -> int:
-    from .report import build_report
+def cmd_transfer(args) -> int:
+    from .optimize import transfer
 
-    out = build_report([Path(d) for d in args.runs], Path(args.out), title=args.title)
+    transfer(Path(args.run), _clips(args.clips))
+    return 0
+
+
+def cmd_report(args) -> int:
+    from .report import build_report, build_surrogate_report
+
+    png_dir = Path(args.png_dir) if args.png_dir else None
+    if args.surrogate:
+        out = build_surrogate_report(Path(args.runs[0]), Path(args.out), title=args.title, png_dir=png_dir)
+    else:
+        out = build_report([Path(d) for d in args.runs], Path(args.out), title=args.title, png_dir=png_dir)
     print(out)
     return 0
 
@@ -132,7 +142,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("runs", nargs="+")
     p.add_argument("--out", default="runs/report.html")
     p.add_argument("--title", default="Pre-compensation report")
+    p.add_argument("--png-dir", help="also save the figures as PNGs here (e.g. docs/img)")
+    p.add_argument("--surrogate", action="store_true", help="the run is a 'vreg surrogate' run")
     p.set_defaults(fn=cmd_report)
+
+    p = sub.add_parser("transfer", help="apply a run's best params to other clips")
+    p.add_argument("run")
+    p.add_argument("--clips", default="all")
+    p.set_defaults(fn=cmd_transfer)
 
     p = sub.add_parser("surrogate", help="differentiable emulator + learned pre-compensation loop")
     p.add_argument("--clips", default="park_joy,old_town_cross,ducks_take_off")

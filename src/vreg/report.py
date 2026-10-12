@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-from . import ff, precomp  # noqa: E402
+from . import content, ff, precomp  # noqa: E402
 from .optimize import load_trials  # noqa: E402
 
 PALETTE = ["#2a6fdb", "#e0731f", "#2c9f6b", "#c0399f", "#8c6d1f", "#5b5b5b"]
@@ -122,7 +122,29 @@ code{font-size:12px}
 """
 
 
-def build_report(run_dirs: list[Path], out: Path, title: str = "Pre-compensation report") -> Path:
+def _tier_only(cfg: dict, clip: str, upscale: float) -> dict | None:
+    """Naive content at the same upload tier as the best params: isolates the filter gains."""
+    from .evaluate import evaluate
+    from .optimize import cache_root
+    from .platform import make_platform
+
+    try:
+        plat = make_platform(cfg["platform"])
+        r = evaluate(clip, Path(cfg["clips"][clip]), {"upscale": upscale}, plat, cache_root(plat))
+        return r.metrics | {"workdir": r.workdir}
+    except Exception:
+        return None
+
+
+def _save(png: bytes, png_dir: Path | None, name: str) -> bytes:
+    if png_dir:
+        png_dir.mkdir(parents=True, exist_ok=True)
+        (png_dir / name).write_bytes(png)
+    return png
+
+
+def build_report(run_dirs: list[Path], out: Path, title: str = "Pre-compensation report",
+                 png_dir: Path | None = None) -> Path:
     runs = {d.name: load_trials(d) for d in run_dirs}
     runs = {k: v for k, v in runs.items() if v}
     if not runs:
@@ -140,7 +162,8 @@ def build_report(run_dirs: list[Path], out: Path, title: str = "Pre-compensation
         summary.append(f"<tr><th>{html.escape(name)}</th><td>{len(vals)}</td><td>{vals[0]:.2f}</td>"
                        f"<td>{vals[b]:.2f}</td><td>{vals[b] - vals[0]:+.2f}</td><td>{trials[b]['trial']}</td></tr>")
     summary.append("</table>")
-    parts += ["<h2>Summary</h2>", *summary, _img_tag(convergence_plot(runs), "convergence")]
+    parts += ["<h2>Summary</h2>", *summary,
+              _img_tag(_save(convergence_plot(runs), png_dir, "convergence.png"), "convergence")]
 
     # overall best across runs drives the detailed section
     best_run, best_trial = max(((n, t) for n, ts in runs.items() for t in ts), key=lambda x: x[1]["value"])
@@ -155,24 +178,109 @@ def build_report(run_dirs: list[Path], out: Path, title: str = "Pre-compensation
     for clip, m_best in best_trial["per_clip"].items():
         m_base = baseline["per_clip"][clip]
         parts.append(f"<h2>Clip: {html.escape(clip)}</h2>")
-        parts.append(_metrics_table({"naive upload": m_base, "pre-compensated": m_best}))
+        up = best_trial["params"]["upscale"]
+        rows = {"naive upload": m_base}
+        tier = _tier_only(cfg0, clip, up) if up > 1 else None
+        if tier:
+            rows[f"upscale x{up:g} only"] = tier
+        rows["pre-compensated (best)"] = m_best
+        parts.append(_metrics_table(rows))
         src = Path(cfg0["clips"][clip])
         try:
-            fig = crops_figure(src, {
-                "naive upload -> playback": Path(m_base["workdir"]) / "playback.mp4",
-                "pre-compensated -> playback": Path(m_best["workdir"]) / "playback.mp4",
-            })
+            panels = {"naive upload": Path(m_base["workdir"]) / "playback.mp4"}
+            if tier:
+                panels[f"upscale x{up:g} only"] = Path(tier["workdir"]) / "playback.mp4"
+            panels["pre-compensated (best)"] = Path(m_best["workdir"]) / "playback.mp4"
+            fig = _save(crops_figure(src, panels), png_dir, f"crops_{clip}.png")
             parts.append(_img_tag(fig, f"crops {clip}"))
         except Exception as e:  # media may have been cleaned up
             parts.append(f"<p class=muted>(no frames: {html.escape(str(e))})</p>")
 
+    for d in run_dirs:
+        tf = d / "transfer.json"
+        if tf.exists():
+            t = json.loads(tf.read_text())
+            parts.append(f"<h2>Transfer to other clips <span class=muted>(best params of {html.escape(d.name)})"
+                         "</span></h2><table><tr><th>clip</th><th>naive</th><th>upscale only</th>"
+                         "<th>best params</th><th>gain vs naive</th><th>gain vs upscale only</th></tr>")
+            for clip, r in t["clips"].items():
+                n, u, b = r["naive"]["composite"], r["upscale_only"]["composite"], r["best"]["composite"]
+                tag = " <span class=muted>(train)</span>" if clip in t["train_clips"] else ""
+                parts.append(f"<tr><th>{html.escape(clip)}{tag}</th><td>{n:.2f}</td><td>{u:.2f}</td><td>{b:.2f}</td>"
+                             f"<td>{b - n:+.2f}</td><td>{b - u:+.2f}</td></tr>")
+            parts.append("</table>")
+
     for name, trials in runs.items():
         if len(trials) >= 5:
             parts.append(f"<h2>Parameter sensitivity: {html.escape(name)}</h2>")
-            parts.append(_img_tag(sensitivity_plot(trials), f"sensitivity {name}"))
+            parts.append(_img_tag(_save(sensitivity_plot(trials), png_dir, f"sensitivity_{name}.png"),
+                                  f"sensitivity {name}"))
 
+    return _write(out, title, parts)
+
+
+def _write(out: Path, title: str, parts: list[str]) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(f"<!doctype html><html lang=en><meta charset=utf-8>"
                    f"<meta name=viewport content='width=device-width,initial-scale=1'>"
                    f"<title>{html.escape(title)}</title><style>{CSS}</style><main>{''.join(parts)}</main></html>")
     return out
+
+
+def surrogate_plot(hist: dict) -> bytes:
+    rounds = hist["rounds"]
+    clips = list(rounds[0]["clips"])
+    fig, (ax, ax2) = plt.subplots(1, 2, figsize=(11, 3.8))
+    for i, clip in enumerate(clips):
+        c = PALETTE[i % len(PALETTE)]
+        ys = [r["clips"][clip]["metrics"]["composite"] - hist["baselines"][clip]["upscale_only"]["composite"]
+              for r in rounds]
+        hold = rounds[0]["clips"][clip]["holdout"]
+        ax.plot(range(len(rounds)), ys, marker="o", color=c, ls="--" if hold else "-",
+                label=clip + (" (holdout)" if hold else ""))
+        ax2.plot(range(len(rounds)), [r["clips"][clip]["emulator_psnr_on_G"] for r in rounds], marker="o",
+                 color=c, ls="--" if hold else "-")
+    ax.axhline(0, color="#888", lw=1)
+    ax.set_title("Learned G vs. same-tier naive upload (composite gain)")
+    ax.set_xlabel("round")
+    ax.legend(frameon=False, fontsize=8)
+    ax2.set_title("Emulator fidelity on G's outputs (PSNR vs real playback)")
+    ax2.set_xlabel("round")
+    ax2.set_ylabel("dB")
+    for a in (ax, ax2):
+        a.grid(alpha=0.25)
+    fig.tight_layout()
+    return _png(fig)
+
+
+def build_surrogate_report(run_dir: Path, out: Path, title: str = "Surrogate (emulator) pipeline",
+                           png_dir: Path | None = None) -> Path:
+    hist = json.loads((run_dir / "history.json").read_text())
+    parts = [f"<h1>{html.escape(title)}</h1>",
+             f"<p class=muted>run {html.escape(str(run_dir))} · upload upscale x{hist['upscale']:g}</p>",
+             _img_tag(_save(surrogate_plot(hist), png_dir, "surrogate.png"), "surrogate rounds")]
+    last = hist["rounds"][-1]
+    parts.append("<h2>Final round, real black-box results</h2><table><tr><th>clip</th><th>naive</th>"
+                 "<th>upscale only</th><th>learned G</th><th>gain vs upscale only</th><th>|G(X)-X|</th></tr>")
+    for clip, r in last["clips"].items():
+        b = hist["baselines"][clip]
+        n, u, g = b["naive"]["composite"], b["upscale_only"]["composite"], r["metrics"]["composite"]
+        tag = " <span class=muted>(holdout)</span>" if r["holdout"] else ""
+        parts.append(f"<tr><th>{html.escape(clip)}{tag}</th><td>{n:.2f}</td><td>{u:.2f}</td><td>{g:.2f}</td>"
+                     f"<td>{g - u:+.2f}</td><td>{r['mean_abs_residual']:.2f}</td></tr>")
+    parts.append("</table>")
+    for clip, r in last["clips"].items():
+        b = hist["baselines"][clip]
+        parts.append(f"<h2>{html.escape(clip)}</h2>")
+        parts.append(_metrics_table({"naive": b["naive"], "upscale only": b["upscale_only"],
+                                     "learned G": r["metrics"]}))
+        try:
+            src = Path(hist.get("sources", {}).get(clip) or content.CLIPS_DIR / f"{clip}.mkv")
+            fig = crops_figure(src, {
+                "upscale only": Path(b["upscale_only"]["workdir"]) / "playback.mp4",
+                "learned G": Path(r["workdir"]) / "playback.mp4",
+            })
+            parts.append(_img_tag(_save(fig, png_dir, f"surrogate_crops_{clip}.png"), clip))
+        except Exception as e:
+            parts.append(f"<p class=muted>(no frames: {html.escape(str(e))})</p>")
+    return _write(out, title, parts)

@@ -226,6 +226,7 @@ def run_loop(
         rec["seconds"] = time.perf_counter() - t0
         history.append(rec)
         torch.save({"E": E.state_dict(), "G": G.state_dict()}, out_dir / f"round{r}.pt")
-        (out_dir / "history.json").write_text(json.dumps({"baselines": baselines, "rounds": history,
-                                                          "upscale": upscale}, indent=2))
+        (out_dir / "history.json").write_text(json.dumps({"baselines": baselines, "rounds": history, "upscale": upscale,
+                                                          "sources": {c: str(p) for c, p in all_clips.items()}},
+                                                         indent=2))
     return history

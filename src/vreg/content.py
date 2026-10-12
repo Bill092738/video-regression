@@ -10,6 +10,7 @@ from pathlib import Path
 
 from . import ff
 
+CLIPS_DIR = Path("data/clips")
 WIDTH, HEIGHT, FPS, SECONDS = 1280, 720, 30, 3
 MASTER_CODEC = ["-c:v", "libx264", "-preset", "veryfast", "-qp", "0", "-pix_fmt", "yuv420p"]
 

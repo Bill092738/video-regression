@@ -111,3 +111,24 @@ def load_trials(out_dir: Path) -> list[dict]:
                 r = json.loads(line)
                 recs[r["trial"]] = r
     return [recs[k] for k in sorted(recs)]
+
+
+def transfer(run_dir: Path, clips: dict[str, Path], log=lambda s: print(s, flush=True)) -> dict:
+    """Apply a run's best parameters to other clips: does theta generalise beyond the training clips?"""
+    from .platform import make_platform
+
+    cfg = json.loads((run_dir / "config.json").read_text())
+    trials = load_trials(run_dir)
+    best = max(trials, key=lambda t: t["value"])["params"]
+    plat = make_platform(cfg["platform"])
+    work = cache_root(plat)
+    out = {"run": run_dir.name, "best_params": best, "train_clips": list(cfg["clips"]), "clips": {}}
+    for clip, src in clips.items():
+        row = {}
+        for label, params in (("naive", {}), ("upscale_only", {"upscale": best["upscale"]}), ("best", best)):
+            row[label] = evaluate(clip, src, params, plat, work).metrics
+        out["clips"][clip] = row
+        log(f"[transfer {run_dir.name}] {clip:16s} naive={row['naive']['composite']:6.2f} "
+            f"upscale_only={row['upscale_only']['composite']:6.2f} best={row['best']['composite']:6.2f}")
+    (run_dir / "transfer.json").write_text(json.dumps(out, indent=2))
+    return out
