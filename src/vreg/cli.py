@@ -95,8 +95,8 @@ def cmd_surrogate(args) -> int:
 
     plat = make_platform(args.platform)
     clips = _clips(args.clips)
-    run_loop(RUNS / (args.name or "surrogate"), clips, plat, rounds=args.rounds,
-             emulator_steps=args.emulator_steps, generator_steps=args.generator_steps,
+    run_loop(RUNS / (args.name or "surrogate"), clips, plat, rounds=args.rounds, upscale=args.upscale,
+             n_variants=args.variants, emulator_steps=args.emulator_steps, generator_steps=args.generator_steps,
              holdout=_clips(args.holdout) if args.holdout else None)
     return 0
 
@@ -139,6 +139,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--holdout", default="in_to_tree")
     p.add_argument("--platform", default="sim:ugc_strict")
     p.add_argument("--rounds", type=int, default=3)
+    p.add_argument("--upscale", type=float, default=2.0, help="fixed upload upscale (tier) for the learned G")
+    p.add_argument("--variants", type=int, default=6, help="random pre-comp variants per clip in round 0")
     p.add_argument("--emulator-steps", type=int, default=3000)
     p.add_argument("--generator-steps", type=int, default=2000)
     p.add_argument("--name")

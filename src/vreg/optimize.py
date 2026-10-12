@@ -52,7 +52,7 @@ def run_study(
     objective: str = "composite",
     seed: int = 0,
     use_lpips: bool | None = None,
-    log=print,
+    log=lambda s: print(s, flush=True),
 ) -> optuna.Study:
     out_dir.mkdir(parents=True, exist_ok=True)
     meta = {"clips": {k: str(v) for k, v in clips.items()}, "platform": platform.name,
