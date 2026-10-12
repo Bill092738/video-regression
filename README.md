@@ -34,10 +34,10 @@ uv run vreg transfer runs/strict_gp --clips all       # do the found params gene
 uv run vreg report runs/strict_gp --out runs/report.html
 
 # learned pre-compensation through a differentiable emulator
-uv run vreg surrogate --clips park_joy,old_town_cross,ducks_take_off --holdout in_to_tree,sky_gradient --rounds 4
-uv run vreg report runs/surrogate --surrogate --out runs/surrogate.html
+uv run vreg surrogate --clips park_joy,old_town_cross,ducks_take_off --holdout in_to_tree,sky_gradient --rounds 3 --name surrogate_trust
+uv run vreg report runs/surrogate_trust --surrogate --out runs/surrogate.html
 
-scripts/run_experiments.sh    # the full sampler comparison used for the results below
+scripts/run_experiments.sh    # reproduces every result below (~4 h on a 6-core + RTX 4060 box)
 uv run pytest -q              # fast unit tests on tiny clips (CI runs these without torch)
 ```
 
@@ -83,9 +83,120 @@ uv run pytest -q              # fast unit tests on tiny clips (CI runs these wit
   * per-parameter sensitivity plots;
   * the transfer table.
 
-## Results
+## Results (simulated platforms, 3 s 720p clips, RTX 4060 + 6 cores)
 
-_Filled in from `scripts/run_experiments.sh` and the surrogate run; see below._
+Objective: `composite` (higher is better), averaged over the training clips `old_town_cross` and
+`park_joy`. Each trial is one full render → transcode → measure cycle, about 15–40 s per clip.
+
+### 1. Black-box search on `sim:ugc_strict`
+
+| sampler | naive upload | best after 40 trials | gain | best found at trial |
+|---|---|---|---|---|
+| GP-BO | 29.45 | **43.80** | +14.35 | 35 |
+| TPE | 29.45 | 43.71 | +14.26 | 29 |
+| CMA-ES | 29.45 | 43.54 | +14.09 | 38 |
+| random | 29.45 | 42.90 | +13.45 | 24 |
+
+![convergence](docs/img/convergence.png)
+
+All samplers converge on the same recipe:
+* upload upscaled ×2 (1440p)
+* mild unsharp mask (0.4–0.8, 5×5)
+* temporal luma grain ≈ 6–7
+* +3–6 % contrast
+* +14–21 % saturation, which counteracts the colour loss from the platform's ingest denoiser
+
+GP-BO, TPE and random share the same 8 seeded start-up trials, so their curves overlap early.
+With one seed per sampler, the gaps between samplers are within noise. The space is only 7-D
+and dominated by one discrete choice, so random search is a strong baseline here.
+
+**Where does the gain come from?** The naive → tier-only → full decomposition (from `vreg transfer`):
+
+| clip | naive | upscale ×2 only (tier trick) | best θ | filter gain over tier trick |
+|---|---|---|---|---|
+| old_town_cross *(train)* | 54.66 | 60.40 | 62.37 | +1.97 |
+| park_joy *(train)* | 4.24 | 22.21 | 25.24 | +3.03 |
+| ducks_take_off | 9.39 | 25.97 | 29.37 | +3.40 |
+| in_to_tree | 49.49 | 58.28 | 61.99 | +3.71 |
+| sky_gradient (synthetic) | 92.44 | 93.07 | 93.16 | +0.09 |
+| mandelbrot (synthetic) | -18.98 | -10.22 | -9.38 | +0.84 |
+| testsrc (synthetic graphics/text) | 68.26 | 69.43 | **57.87** | **−11.56** |
+
+* **Most of the gain (~80 %) comes from gaming the encode ladder**: a bigger upload gets a better
+  codec and more bits. This is the "resolution / tier deception" strategy from the idea, and in the
+  simulator it is real by construction.
+* The **filtering** part adds a further +2–4 on natural footage, and it **transfers to unseen
+  natural clips** (ducks, in_to_tree).
+* It **hurts synthetic graphics/text badly** (testsrc −11.6), because sharpening, grain and the
+  colour boost damage flat colours and hard edges. Pre-compensation has to be **content-adaptive**.
+
+![park_joy crops](docs/img/crops_park_joy.png)
+
+### 2. Different black box, different optimum: `sim:ugc_av1`
+
+GP-BO improves 38.03 → 41.67. The best θ is again ×2 upscale, which here gets AV1 instead of x264.
+Unlike on `ugc_strict`, it uses **no grain** and **stronger sharpening** (1.29, 3×3). This
+platform does no ingest denoising, so there is nothing for grain to survive. Its AV1 encode is
+soft, so pre-emphasis pays off. Compensation is therefore platform-specific, which is the point of
+closing the loop against the real target rather than tuning once.
+
+### 3. Learned pre-compensation through a differentiable emulator (`vreg surrogate`)
+
+`G` is a residual U-Net trained through a frozen emulator `E`, which is itself trained on real
+(upload, playback) pairs from the black box. Training clips are park_joy, old_town_cross and
+ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at ×2.
+
+* **Without a trust region, `G` exploits the emulator.** Round 0 moved pixels by 18–32 levels on
+  average. On those outputs the emulator's PSNR against the real playback fell to 19–25 dB, and
+  real quality collapsed: old_town_cross went from 60.4 to 39.0, and park_joy and ducks also fell
+  far below the upscale-only baseline (`runs/surrogate_naive`). This is the classic failure of
+  optimising against a learned simulator.
+* **With a trust region** (L1 penalty on `|G(X)−X|`, residual capped at 0.06), round 0 beats
+  the same-tier naive upload on every natural clip, including the held-out one:
+
+| clip | upscale only | learned G (round 0) | gain | GP-BO θ (for comparison) |
+|---|---|---|---|---|
+| old_town_cross | 60.40 | **65.28** | +4.88 | 62.37 |
+| park_joy | 22.21 | 22.96 | +0.75 | 25.24 |
+| ducks_take_off | 25.97 | 26.55 | +0.58 | 29.37 |
+| in_to_tree *(held out)* | 58.28 | **62.26** | +3.98 | 61.99 |
+| sky_gradient *(held out)* | 93.07 | 90.81 | −2.26 | 93.16 |
+
+![surrogate rounds](docs/img/surrogate/surrogate.png)
+![in_to_tree crops](docs/img/surrogate/surrogate_crops_in_to_tree.png)
+
+* Later "domain adaptation" rounds, which add `G`'s real pairs to `E`'s data and fine-tune both,
+  **did not help in this run**:
+  * `G`'s residual kept growing.
+  * Gains shrank round over round.
+  * The emulator's fidelity on `G`'s outputs barely moved (about 25 dB on park_joy and ducks).
+
+  The report therefore selects the round by training-clip gain only, which was round 0. The run
+  was stopped after round 2.
+* The learned `G` wins on smoother, mid-detail content (old_town_cross, in_to_tree). The 7-knob
+  parametric θ wins on very dense texture (park_joy, ducks), where the emulator is weakest
+  (~25 dB).
+
+### Caveats
+
+* The platforms are **simulated**. The ladder rules are plausible but invented, so the specific
+  numbers (especially the tier-trick gain) do not carry over to a real platform. The tooling does:
+  point `CommandPlatform` at a real upload/download workflow.
+* There is one seed per configuration, on 3-second clips.
+* The objective is itself a model of quality. Grain and saturation gains are partly what LPIPS and
+  VMAF-NEG reward, and a viewer study, or at least a second independent metric such as
+  SSIMULACRA2, should be used to confirm them.
+
+### Next steps
+
+1. **Content-adaptive θ**: condition θ on simple content features (texture energy, flat-area
+   fraction, text detection), or run a per-shot search seeded from a global prior.
+2. **Hybrid**: use BO for the discrete and global knobs (tier, grain, colour), then a learned `G`
+   for local detail on top.
+3. **Emulator robustness**: an ensemble of `E` with a disagreement penalty, temporal context,
+   and including `G`-like perturbations in round 0.
+4. **Real platform runs** through `CommandPlatform`: private/unlisted uploads, rate-limited, on
+   your own content.
 
 ## Repository layout
 
