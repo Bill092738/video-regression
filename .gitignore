@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# generated media and experiment outputs
+data/
+runs/
+*.mp4
+*.mkv
+*.y4m
+*.webm
+!docs/**/*.png
