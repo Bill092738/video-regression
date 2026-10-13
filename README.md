@@ -21,6 +21,25 @@ Two optimisation routes are implemented, matching section 3 of the idea:
 | **Black-box search** | 7 interpretable filter parameters (denoise, contrast, saturation, upload upscale / tier, unsharp amount + radius, temporal grain) | Optuna: GP Bayesian optimisation, multivariate TPE, CMA-ES, random baseline | `vreg optimize` |
 | **Surrogate / emulator** | A per-pixel residual CNN `G` | Train a differentiable emulator `E ≈ f_platform` on real (upload, playback) pairs, back-prop through it, re-validate on the real black box, add the new pairs, repeat (domain adaptation) | `vreg surrogate` |
 
+## Status and positioning
+
+* **Status:** the full loop works end to end on **simulated** platforms. The real-platform
+  adapter exists but has not been run yet. All results so far use one seed per configuration.
+  The checklist, what the results do and do not show, and the prioritised experiment backlog are
+  in [`PROGRESS.md`](PROGRESS.md).
+* **Not new:** learned pre-processing in front of a standard codec trained through a codec proxy
+  (iSIZE DPP, ByteDance RPP), the "upload at 1440p/4K to get a better codec" tier trick (creator
+  knowledge), and closed-loop channel matching against real platforms (robust steganography).
+  These are cited, not claimed.
+* **What this project adds:** optimisation from the **uploader's side** against an **unknown,
+  adaptive** platform pipeline: ladder choice, ingest filtering, rate control and the served
+  rendition. It runs in a closed loop with a small real-upload budget, and reports how much
+  playback quality is recovered **beyond** the tier trick.
+
+  The survey, the overlap check and the license notes for reusable code are in
+  [`docs/related-work.md`](docs/related-work.md). The updated direction is in
+  [`idea.md`](idea.md).
+
 ## Quick start
 
 ```bash
@@ -123,8 +142,10 @@ and dominated by one discrete choice, so random search is a strong baseline here
 | testsrc (synthetic graphics/text) | 68.26 | 69.43 | **57.87** | **−11.56** |
 
 * **Most of the gain (~80 %) comes from gaming the encode ladder**: a bigger upload gets a better
-  codec and more bits. This is the "resolution / tier deception" strategy from the idea, and in the
-  simulator it is real by construction.
+  codec and more bits. This is the "resolution / tier deception" strategy from the idea. It is
+  common creator knowledge (e.g. uploading 1440p to YouTube to get VP9/AV1), and in the
+  simulator it holds by construction. Treat it as a sanity check that the optimiser finds the
+  known trick, not as a finding. The interesting quantity is the gain **on top of** it.
 * The **filtering** part adds a further +2–4 on natural footage, and it **transfers to unseen
   natural clips** (ducks, in_to_tree).
 * It **hurts synthetic graphics/text badly** (testsrc −11.6), because sharpening, grain and the
@@ -184,19 +205,50 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
   point `CommandPlatform` at a real upload/download workflow.
 * There is one seed per configuration, on 3-second clips.
 * The objective is itself a model of quality. Grain and saturation gains are partly what LPIPS and
-  VMAF-NEG reward, and a viewer study, or at least a second independent metric such as
-  SSIMULACRA2, should be used to confirm them.
+  VMAF-NEG reward. The found recipe (+contrast, +saturation, unsharp) is close to published VMAF
+  and VMAF NEG attacks (Zvezdakova 2019; Siniukov 2021: VMAF NEG +23.6 % with no subjective
+  gain). Until independent metrics such as SSIMULACRA2 and DISTS and a viewer study confirm them,
+  the filter gains are provisional.
+
+### What the results show so far
+
+1. The closed loop works, and every sampler beats a naive upload. With one seed, the samplers
+   cannot be told apart.
+2. About 80 % of the gain is the known tier trick. Filtering adds +2–4 on natural footage, and
+   this transfers to unseen natural clips.
+3. The same θ hurts graphics and text, so pre-compensation must be content-adaptive.
+4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`.
+5. A learned `G` exploits its emulator unless it is constrained. With a trust region it beats
+   tier-only on all natural clips. Domain-adaptation rounds did not help yet.
 
 ### Next steps
 
-1. **Content-adaptive θ**: condition θ on simple content features (texture energy, flat-area
-   fraction, text detection), or run a per-shot search seeded from a global prior.
-2. **Hybrid**: use BO for the discrete and global knobs (tier, grain, colour), then a learned `G`
-   for local detail on top.
-3. **Emulator robustness**: an ensemble of `E` with a disagreement penalty, temporal context,
-   and including `G`-like perturbations in round 0.
-4. **Real platform runs** through `CommandPlatform`: private/unlisted uploads, rate-limited, on
-   your own content.
+The full backlog is in [`PROGRESS.md`](PROGRESS.md#4-experiment-backlog). Each item lists what is
+compared and what counts as success. In short:
+
+* **P0, make the claims solid:**
+  * several seeds;
+  * independent metrics (SSIMULACRA2, DISTS, XPSNR);
+  * an ablation with the contrast and saturation knobs frozen;
+  * a Goodhart matrix (optimise one metric, judge with the others);
+  * filter-only search at the native tier.
+* **P1, method improvements:**
+  * content-adaptive θ;
+  * a real-forward / surrogate-backward estimator for `G`;
+  * an emulator ensemble or a conservative emulator;
+  * a BO + `G` hybrid;
+  * TuRBO and warm-started BO for a small real budget;
+  * a common creator recipe as a baseline.
+* **P1, simulator realism:**
+  * passthrough below a bitrate cap;
+  * AV1 film-grain synthesis;
+  * several renditions;
+  * cross-platform transfer.
+* **P2, real platform and human study:**
+  * a platform ladder probe;
+  * a real closed loop on own content, with private uploads;
+  * a small paired-comparison viewer study;
+  * longer and more varied content.
 
 ## Repository layout
 
@@ -206,5 +258,8 @@ src/vreg/surrogate/  models.py loop.py
 scripts/        setup_env.sh run_experiments.sh
 tests/          tiny-clip unit tests (run in GitHub Actions)
 docs/img/       figures used in this README
+docs/related-work.md  prior work, overlap check, reusable code and licenses
+idea.md         project idea and direction (updated after the prior-work review)
+PROGRESS.md     what is done, what the results show, experiment backlog
 data/, runs/    generated clips and experiment outputs (git-ignored)
 ```
