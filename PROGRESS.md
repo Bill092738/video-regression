@@ -238,7 +238,38 @@ composite −10.30 / ssimulacra2 −2.37 / xpsnr −4.31; lpips row xpsnr −11.
 
 ### E1: seeds and variance
 
-*Running; results to follow.*
+Samplers on `ugc_strict`, composite, 40 trials, two training clips. Five seeds: seed 0 is the
+original run (`strict_<sampler>`), seeds 1–4 are `strict_<sampler>_s<n>`.
+
+![convergence across seeds](docs/img/p0/convergence.png)
+
+| sampler | seeds | final best (mean ± sd) | trial reaching 95 % of final gain (mean ± sd) |
+|---|---|---|---|
+| GP-BO | 5 | **43.79 ± 0.02** | 17.4 ± 8.0 |
+| TPE | 5 | 43.43 ± 0.35 | 16.2 ± 5.5 |
+| CMA-ES | 5 | 40.71 ± 3.82 | 22.4 ± 6.6 |
+| random | 5 | 42.82 ± 0.51 | 15.6 ± 10.3 |
+
+By the rule (A beats B only if mean(A) − mean(B) > max(sd(A), sd(B))): **GP-BO beats TPE (+0.36)
+and random (+0.96), and TPE beats random (+0.61).** No sampler beats CMA-ES or loses to it by the
+rule, because its sd is so large.
+
+* **GP-BO is the best and by far the most consistent sampler** (sd 0.02 over five seeds). The
+  earlier claim "with one seed, the samplers cannot be told apart" is replaced by this ranking:
+  GP-BO > TPE > random.
+* **CMA-ES is unreliable at this budget.** On two of five seeds (`s2`, `s3`) it never left the
+  ×1.5 tier and ended at about 36.5. `upscale` is a continuous knob snapped to {1, 1.5, 2}, and
+  CMA-ES starts in the middle of the box with a small step size. With a population of 8, 40
+  trials are only five generations, too few to cross into the ×2 tier on some seeds.
+* **The best θ is not identifiable, even though the objective is.** The five GP-BO runs reach
+  43.77–43.80, but their recipes differ:
+  * grain ranges from 0 to 15;
+  * unsharp ranges from 0.42 (5×5) to 1.23 (3×3);
+  * saturation sits at the upper bound of 1.25 in four of five runs.
+
+  All runs agree on ×2 and +4–6 % contrast. The objective is flat along grain and sharpening,
+  so the earlier "all samplers converge on the same recipe" (grain ≈ 6–7, unsharp 0.4–0.8) was
+  one point on a ridge, not a stable optimum.
 
 ### Verdicts
 
