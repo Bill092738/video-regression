@@ -116,9 +116,9 @@ def e4(out: list[str]):
             "(composite contains vmaf_neg and lpips).", "",
             "| objective | " + " | ".join(METRICS) + " | negative non-own cells | mean rank |",
             "|---" * (len(METRICS) + 3) + "|"]
-    choice = []
+    choice, negs = [], {}
     for i, o in enumerate(rows):
-        neg = [m for j, m in enumerate(METRICS) if mat[i, j] < 0 and m not in OWN[o]]
+        neg = negs[o] = [m for j, m in enumerate(METRICS) if mat[i, j] < 0 and m not in OWN[o]]
         cells = [(f"**{fmt(mat[i, j], m)}**" if m in OWN[o] else fmt(mat[i, j], m)) for j, m in enumerate(METRICS)]
         out.append(f"| {o} | " + " | ".join(cells) + f" | {', '.join(neg) or 'none'} | {ranks[i].mean():.2f} |")
         choice.append((len(neg) > 0, ranks[i].mean(), o))
@@ -127,9 +127,15 @@ def e4(out: list[str]):
     for o in rows:
         out.append(f"| {o} | " + " | ".join(
             fmt(test[o][m]["per_clip"].get("testsrc", float("nan")), m) for m in METRICS) + " |")
-    best = sorted(choice)[0]
-    rule = "no negative non-own cell" if not best[0] else "NO row is free of negative non-own cells; best mean rank"
-    out += ["", f"* chosen default objective: **{best[2]}** ({rule}, mean rank {best[1]:.2f})", ""]
+    clean = sorted((r, o) for neg, r, o in choice if not neg)
+    if clean:
+        out += ["", f"* chosen default objective: **{clean[0][1]}** (no negative non-own cell; "
+                f"best mean rank {clean[0][0]:.2f})", ""]
+    else:
+        fewest = min(choice, key=lambda c: (len(negs[c[2]]), c[1]))
+        out += ["", "* **no row satisfies the rule** (every objective lowers at least one judge it did not "
+                f"optimise). Fewest negative non-own cells: {fewest[2]} ({len(negs[fewest[2]])}); "
+                f"best mean rank: {min(choice, key=lambda c: c[1])[2]}.", ""]
     _matrix_png(list(rows), mat)
 
 
@@ -137,10 +143,12 @@ def _matrix_png(objs: list[str], mat: np.ndarray):
     scale = np.abs(mat).max(0)
     scale[scale == 0] = 1
     fig, ax = plt.subplots(figsize=(1.5 * len(METRICS) + 1.5, 0.55 * len(objs) + 1.2))
-    ax.imshow(mat / scale, cmap="RdBu", vmin=-1, vmax=1, aspect="auto")
+    norm = mat / scale
+    ax.imshow(norm, cmap="RdBu", vmin=-1.4, vmax=1.4, aspect="auto")
     for i in range(len(objs)):
         for j, m in enumerate(METRICS):
-            ax.text(j, i, fmt(mat[i, j], m), ha="center", va="center", fontsize=9, color="#1d1d1f")
+            ink = "#ffffff" if abs(norm[i, j]) > 0.6 else "#1d1d1f"
+            ax.text(j, i, fmt(mat[i, j], m), ha="center", va="center", fontsize=9, color=ink)
     ax.set_xticks(range(len(METRICS)), METRICS, fontsize=9)
     ax.set_yticks(range(len(objs)), [f"optimise {o}" for o in objs], fontsize=9)
     ax.set_title("Gain over tier-only (natural clips; blue = better, red = worse, scaled per column)", fontsize=10)
