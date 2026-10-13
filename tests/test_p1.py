@@ -142,3 +142,33 @@ def test_g_is_not_judged_by_its_own_loss():
     assert judges_for(None) == ("ssimulacra2", "dists", "xpsnr")
     for loss in ("dists", "lpips+dists"):
         assert "dists" not in judges_for(loss) and "vmaf_neg" in judges_for(loss)
+
+
+def _p1_tables():
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("p1_tables", Path(__file__).parents[1] / "scripts/p1_tables.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_bootstrap_ci_over_clips():
+    t = _p1_tables()
+    mean, lo, hi = t.bootstrap([1.0, 2.0, 3.0, 4.0], n=2000)
+    assert mean == 2.5 and 1.0 <= lo < 2.5 < hi <= 4.0
+    _, lo, _ = t.bootstrap([0.5, 0.6, 0.7, 0.8, 0.9], n=2000)
+    assert lo > 0  # a consistently positive gain excludes 0
+    assert np.isnan(t.bootstrap([])[0])
+
+
+def test_g_gain_is_seed_mean_per_clip():
+    t = _p1_tables()
+    g = {"a": [{"xpsnr": 31.0}, {"xpsnr": 33.0}], "b": [{"xpsnr": 30.0}]}
+    ref = {"a": {"xpsnr": 30.0}, "b": {"xpsnr": 31.0}, "c": {"xpsnr": 1.0}}
+    assert t.gains(g, ref, ["a", "b", "c"], "xpsnr") == [2.0, -1.0]
+    assert t.gains(g, ref, ["a", "b"], "dists") == []
+    # lower-is-better metrics are signed so that positive = better
+    assert t.gains({"a": {"dists": 0.1}}, {"a": {"dists": 0.3}}, ["a"], "dists") == [pytest.approx(0.2)]
+    assert t.seed_gains(g, ref, ["a", "b"], "xpsnr") == [0.0, 3.0]
