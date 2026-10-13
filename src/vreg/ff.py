@@ -59,6 +59,15 @@ def vmaf_ffmpeg_bin() -> str | None:
     return None
 
 
+@functools.cache
+def xpsnr_ffmpeg_bin() -> str | None:
+    """Return an ffmpeg binary that has the xpsnr filter (ffmpeg >= 7.1), or None."""
+    for cand in (ffmpeg_bin(), vmaf_ffmpeg_bin(), str(_LOCAL_VMAF_FFMPEG)):
+        if cand and Path(cand).exists() and _has_filter(cand, "xpsnr"):
+            return cand
+    return None
+
+
 def run(args: list[str], binary: str | None = None) -> subprocess.CompletedProcess:
     cmd = [binary or ffmpeg_bin(), "-hide_banner", "-nostdin", "-loglevel", "error", "-y", *args]
     proc = subprocess.run(cmd, capture_output=True, text=True)

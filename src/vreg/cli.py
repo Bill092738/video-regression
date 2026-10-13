@@ -25,6 +25,11 @@ def cmd_doctor(_args) -> int:
         print(f"torch / LPIPS  : {torch.__version__} on {cuda}")
     else:
         print("torch / LPIPS  : not installed (uv sync --extra torch)")
+    xp = ff.xpsnr_ffmpeg_bin()
+    print(f"xpsnr ffmpeg   : {xp or 'MISSING (needs ffmpeg >= 7.1; the xpsnr judge is skipped)'}")
+    for j in metrics.JUDGE_METRICS:
+        if j != "xpsnr":
+            print(f"judge {j:9s}: {'ok' if metrics.judge_available(j) else 'MISSING (skipped; uv sync --extra torch)'}")
     for enc in ("libx264", "libx265", "libsvtav1"):
         import subprocess
 
@@ -66,14 +71,14 @@ def cmd_eval(args) -> int:
 
 
 def cmd_optimize(args) -> int:
-    from .optimize import run_study
+    from .optimize import parse_fixed, run_study
     from .platform import make_platform
 
     plat = make_platform(args.platform)
     clips = _clips(args.clips)
     name = args.name or f"{args.platform.replace(':', '-')}_{args.sampler}_{'+'.join(clips)}"
     study = run_study(RUNS / name, clips, plat, sampler=args.sampler, n_trials=args.trials,
-                      objective=args.objective, seed=args.seed)
+                      objective=args.objective, seed=args.seed, fixed=parse_fixed(args.fix))
     b = study.best_trial
     print(f"best value {b.value:.3f} (trial {b.number}); baseline {study.trials[0].value:.3f}")
     print(json.dumps(b.user_attrs.get("params_norm", b.params), indent=2))
@@ -84,6 +89,16 @@ def cmd_transfer(args) -> int:
     from .optimize import transfer
 
     transfer(Path(args.run), _clips(args.clips))
+    return 0
+
+
+def cmd_rescore(args) -> int:
+    from .rescore import rescore
+
+    clips = _clips(args.clips)
+    for run in args.runs:
+        rescore(Path(run), clips)
+        print((Path(run) / "rescore.md").read_text())
     return 0
 
 
@@ -108,7 +123,7 @@ def cmd_surrogate(args) -> int:
     run_loop(RUNS / (args.name or "surrogate"), clips, plat, rounds=args.rounds, upscale=args.upscale,
              n_variants=args.variants, emulator_steps=args.emulator_steps, generator_steps=args.generator_steps,
              finetune_fraction=args.finetune_fraction, trust_weight=args.trust_weight, max_residual=args.max_residual,
-             holdout=_clips(args.holdout) if args.holdout else None)
+             holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed)
     return 0
 
 
@@ -134,10 +149,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sampler", default="gp", choices=["random", "tpe", "gp", "cmaes"])
     p.add_argument("--trials", type=int, default=40)
     p.add_argument("--objective", default="composite",
-                   choices=["composite", "vmaf_neg", "vmaf", "ssim", "psnr_y", "lpips", "cambi"])
+                   choices=["composite", "vmaf_neg", "vmaf", "ssim", "psnr_y", "lpips", "cambi",
+                            "ssimulacra2", "dists", "xpsnr"])
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--fix", help="freeze parameters, e.g. contrast=1,saturation=1 or upscale=1")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_optimize)
+
+    p = sub.add_parser("rescore", help="score naive / tier-only / best (or each G round) with all metrics")
+    p.add_argument("runs", nargs="+")
+    p.add_argument("--clips", default="all")
+    p.set_defaults(fn=cmd_rescore)
 
     p = sub.add_parser("report", help="HTML report for one or more runs")
     p.add_argument("runs", nargs="+")
@@ -164,6 +186,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--finetune-fraction", type=float, default=0.4, help="steps in rounds >0 relative to round 0")
     p.add_argument("--emulator-steps", type=int, default=3000)
     p.add_argument("--generator-steps", type=int, default=1500)
+    p.add_argument("--seed", type=int, default=0)
     p.add_argument("--name")
     p.set_defaults(fn=cmd_surrogate)
 

@@ -32,14 +32,66 @@ def _img_tag(png: bytes, alt: str) -> str:
     return f'<img alt="{html.escape(alt)}" src="data:image/png;base64,{base64.b64encode(png).decode()}">'
 
 
-def convergence_plot(runs: dict[str, list[dict]]) -> bytes:
+def seed_groups(configs: dict[str, dict]) -> dict[str, list[str]]:
+    """Runs that differ only in seed, as {label: [run names]}; singletons keep their run name."""
+    groups: dict[str, list[str]] = {}
+    for name, cfg in configs.items():
+        cfg = {"fixed": {}, **cfg}  # runs from before --fix have no "fixed" entry
+        key = json.dumps({k: v for k, v in cfg.items() if k != "seed"}, sort_keys=True)
+        groups.setdefault(key, []).append(name)
+    out = {}
+    for key, names in groups.items():
+        if len(names) > 1:
+            label = json.loads(key)["sampler"]
+            out[label if label not in out else names[0]] = names
+        else:
+            out[names[0]] = names
+    return out
+
+
+def best_so_far(runs: dict[str, list[dict]], names: list[str]) -> np.ndarray:
+    """(n runs, n trials) best-so-far objective, truncated to the shortest run."""
+    curves = [np.maximum.accumulate([t["value"] for t in runs[n]]) for n in names]
+    n = min(len(c) for c in curves)
+    return np.array([c[:n] for c in curves])
+
+
+def trial_to_fraction(curve: np.ndarray, frac: float = 0.95) -> int:
+    """First trial at which ``frac`` of the run's final gain over trial 0 is reached."""
+    gain = curve - curve[0]
+    if gain[-1] <= 0:
+        return 0
+    return int(np.argmax(gain >= frac * gain[-1]))
+
+
+def seed_table(runs: dict[str, list[dict]], groups: dict[str, list[str]]) -> list[dict]:
+    rows = []
+    for label, names in groups.items():
+        curves = best_so_far(runs, names)
+        final = curves[:, -1]
+        t95 = np.array([trial_to_fraction(c) for c in curves])
+        rows.append({"label": label, "n": len(names), "trials": curves.shape[1],
+                     "final_mean": float(final.mean()), "final_sd": float(final.std(ddof=1)) if len(names) > 1 else 0.0,
+                     "t95_mean": float(t95.mean()), "t95_sd": float(t95.std(ddof=1)) if len(names) > 1 else 0.0})
+    return rows
+
+
+def convergence_plot(runs: dict[str, list[dict]], groups: dict[str, list[str]] | None = None) -> bytes:
+    """Best-so-far per run; runs that differ only in seed are drawn as mean ± sd bands."""
+    groups = groups or {n: [n] for n in runs}
     fig, ax = plt.subplots(figsize=(7.5, 4))
-    for i, (name, trials) in enumerate(runs.items()):
-        vals = np.array([t["value"] for t in trials])
+    for i, (label, names) in enumerate(groups.items()):
+        c = PALETTE[i % len(PALETTE)]
+        if len(names) > 1:
+            curves = best_so_far(runs, names)
+            mu, sd = curves.mean(0), curves.std(0, ddof=1)
+            ax.plot(mu, color=c, lw=2, label=f"{label} (mean ± sd, {len(names)} seeds)")
+            ax.fill_between(range(len(mu)), mu - sd, mu + sd, color=c, alpha=0.18, lw=0)
+            continue
+        vals = np.array([t["value"] for t in runs[names[0]]])
         if not len(vals):
             continue
-        c = PALETTE[i % len(PALETTE)]
-        ax.plot(np.maximum.accumulate(vals), color=c, lw=2, label=name)
+        ax.plot(np.maximum.accumulate(vals), color=c, lw=2, label=label)
         ax.scatter(range(len(vals)), vals, color=c, s=10, alpha=0.35)
     first = next((t for t in runs.values() if t), None)
     if first:
@@ -149,6 +201,8 @@ def build_report(run_dirs: list[Path], out: Path, title: str = "Pre-compensation
     runs = {k: v for k, v in runs.items() if v}
     if not runs:
         raise SystemExit("no trials found in the given run directories")
+    configs = {d.name: json.loads((d / "config.json").read_text()) for d in run_dirs if d.name in runs}
+    groups = seed_groups(configs)
     parts = [f"<h1>{html.escape(title)}</h1>"]
     cfg0 = json.loads((run_dirs[0] / "config.json").read_text())
     parts.append(f"<p class=muted>platform <code>{html.escape(cfg0['platform'])}</code> · "
@@ -163,7 +217,15 @@ def build_report(run_dirs: list[Path], out: Path, title: str = "Pre-compensation
                        f"<td>{vals[b]:.2f}</td><td>{vals[b] - vals[0]:+.2f}</td><td>{trials[b]['trial']}</td></tr>")
     summary.append("</table>")
     parts += ["<h2>Summary</h2>", *summary,
-              _img_tag(_save(convergence_plot(runs), png_dir, "convergence.png"), "convergence")]
+              _img_tag(_save(convergence_plot(runs, groups), png_dir, "convergence.png"), "convergence")]
+    if any(len(v) > 1 for v in groups.values()):
+        parts.append("<h2>Across seeds</h2><table><tr><th>sampler</th><th>seeds</th><th>trials</th>"
+                     "<th>final best (mean ± sd)</th><th>trial reaching 95 % of final gain (mean ± sd)</th></tr>")
+        for r in seed_table(runs, groups):
+            parts.append(f"<tr><th>{html.escape(r['label'])}</th><td>{r['n']}</td><td>{r['trials']}</td>"
+                         f"<td>{r['final_mean']:.2f} ± {r['final_sd']:.2f}</td>"
+                         f"<td>{r['t95_mean']:.1f} ± {r['t95_sd']:.1f}</td></tr>")
+        parts.append("</table>")
 
     # overall best across runs drives the detailed section
     best_run, best_trial = max(((n, t) for n, ts in runs.items() for t in ts), key=lambda x: x[1]["value"])
@@ -210,8 +272,9 @@ def build_report(run_dirs: list[Path], out: Path, title: str = "Pre-compensation
                              f"<td>{b - n:+.2f}</td><td>{b - u:+.2f}</td></tr>")
             parts.append("</table>")
 
+    first_of_group = {names[0] for names in groups.values()}
     for name, trials in runs.items():
-        if len(trials) >= 5:
+        if len(trials) >= 5 and name in first_of_group:
             parts.append(f"<h2>Parameter sensitivity: {html.escape(name)}</h2>")
             parts.append(_img_tag(_save(sensitivity_plot(trials), png_dir, f"sensitivity_{name}.png"),
                                   f"sensitivity {name}"))

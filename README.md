@@ -24,7 +24,8 @@ Two optimisation routes are implemented, matching section 3 of the idea:
 ## Status and positioning
 
 * **Status:** the full loop works end to end on **simulated** platforms. The real-platform
-  adapter exists but has not been run yet. All results so far use one seed per configuration.
+  adapter exists but has not been run yet. The `ugc_strict` sampler comparison uses five seeds
+  and the learned `G` four; the other configurations use one seed.
   The checklist, what the results do and do not show, and the prioritised experiment backlog are
   in [`PROGRESS.md`](PROGRESS.md).
 * **Not new:** learned pre-processing in front of a standard codec trained through a codec proxy
@@ -118,16 +119,27 @@ Objective: `composite` (higher is better), averaged over the training clips `old
 
 ![convergence](docs/img/convergence.png)
 
-All samplers converge on the same recipe:
-* upload upscaled ×2 (1440p)
-* mild unsharp mask (0.4–0.8, 5×5)
-* temporal luma grain ≈ 6–7
-* +3–6 % contrast
-* +14–21 % saturation, which counteracts the colour loss from the platform's ingest denoiser
+The table is the seed-0 run. Over five seeds (P0 E1, [P0 results](PROGRESS.md#6-p0-results)):
 
-GP-BO, TPE and random share the same 8 seeded start-up trials, so their curves overlap early.
-With one seed per sampler, the gaps between samplers are within noise. The space is only 7-D
-and dominated by one discrete choice, so random search is a strong baseline here.
+| sampler | final best, mean ± sd over 5 seeds |
+|---|---|
+| GP-BO | **43.79 ± 0.02** |
+| TPE | 43.43 ± 0.35 |
+| CMA-ES | 40.71 ± 3.82 |
+| random | 42.82 ± 0.51 |
+
+![convergence across five seeds](docs/img/p0/convergence.png)
+
+* **GP-BO beats TPE and random search**, using the rule that the mean difference must exceed
+  both standard deviations. TPE beats random. GP-BO is also the most consistent sampler.
+* **CMA-ES is unreliable at a 40-trial budget.** On two of five seeds it never left the ×1.5
+  tier. With a population of 8, 40 trials are only five generations.
+* **The objective is reproducible; the recipe is not.** Every GP-BO seed picks ×2 and +4–6 %
+  contrast, and saturation is usually at its upper bound (+25 %). Grain (0–15) and unsharp
+  amount (0.4–1.2) vary freely across seeds at the same score (43.77–43.80). The objective is
+  flat along those knobs, so no particular grain or sharpening setting is "the" optimum. The
+  saturation boost was earlier explained as counteracting the ingest denoiser's colour loss.
+  The independent metrics below suggest it is mostly rewarded by the objective.
 
 **Where does the gain come from?** The naive → tier-only → full decomposition (from `vreg transfer`):
 
@@ -146,8 +158,15 @@ and dominated by one discrete choice, so random search is a strong baseline here
   common creator knowledge (e.g. uploading 1440p to YouTube to get VP9/AV1), and in the
   simulator it holds by construction. Treat it as a sanity check that the optimiser finds the
   known trick, not as a finding. The interesting quantity is the gain **on top of** it.
-* The **filtering** part adds a further +2–4 on natural footage, and it **transfers to unseen
-  natural clips** (ducks, in_to_tree).
+* The **filtering** part adds a further +2–4 **on the objective** on natural footage, including
+  unseen clips (ducks, in_to_tree). **Independent metrics do not confirm it**
+  ([P0 results](PROGRESS.md#6-p0-results)). SSIMULACRA2 and XPSNR are *lower* than tier-only on
+  every natural clip, and DISTS is flat. Most of the gain comes from the contrast and saturation
+  boost plus grain, which VMAF NEG and LPIPS reward. With contrast and saturation frozen, the
+  optimiser keeps 72 % of the composite gain with sharpening only (no grain), and that version
+  passes two of three judges (DISTS, XPSNR).
+* At the native tier (×1, no tier change) a filter-only search finds the same +3 composite gain
+  from contrast alone, and **no** independent metric agrees. That is metric hacking.
 * It **hurts synthetic graphics/text badly** (testsrc −11.6), because sharpening, grain and the
   colour boost damage flat colours and hard edges. Pre-compensation has to be **content-adaptive**.
 
@@ -161,6 +180,10 @@ platform does no ingest denoising, so there is nothing for grain to survive. Its
 soft, so pre-emphasis pays off. Compensation is therefore platform-specific, which is the point of
 closing the loop against the real target rather than tuning once.
 
+The independent metrics agree with this gain on average, but one clip carries it. On park_joy the
+AV1 tier-only upload is worse than naive on SSIMULACRA2, and θ recovers much of that loss. On the
+other three natural clips, SSIMULACRA2 and XPSNR are slightly lower with θ than with tier-only.
+
 ### 3. Learned pre-compensation through a differentiable emulator (`vreg surrogate`)
 
 `G` is a residual U-Net trained through a frozen emulator `E`, which is itself trained on real
@@ -173,7 +196,8 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
   far below the upscale-only baseline (`runs/surrogate_naive`). This is the classic failure of
   optimising against a learned simulator.
 * **With a trust region** (L1 penalty on `|G(X)−X|`, residual capped at 0.06), round 0 beats
-  the same-tier naive upload on every natural clip, including the held-out one:
+  the same-tier naive upload on every natural clip in this run (seed 0), including the held-out
+  one. Over three further seeds, it falls below tier-only on ducks_take_off (see below):
 
 | clip | upscale only | learned G (round 0) | gain | GP-BO θ (for comparison) |
 |---|---|---|---|---|
@@ -194,44 +218,62 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
 
   The report therefore selects the round by training-clip gain only, which was round 0. The run
   was stopped after round 2.
-* The learned `G` wins on smoother, mid-detail content (old_town_cross, in_to_tree). The 7-knob
-  parametric θ wins on very dense texture (park_joy, ducks), where the emulator is weakest
-  (~25 dB).
+* In this run the learned `G` won on smoother, mid-detail content (old_town_cross, in_to_tree),
+  and the 7-knob parametric θ won on very dense texture (park_joy, ducks), where the emulator is
+  weakest (~25 dB). **Across seeds** (3 for `G`, 5 for θ; P0 E1), `G` beats θ only on
+  old_town_cross (65.4 ± 0.9 vs 62.6 ± 0.2). They tie on in_to_tree. `G` is below tier-only on
+  ducks_take_off in all three new seeds, and it damages the held-out gradient clip (−10 vs
+  tier-only).
+* Independent metrics partly agree with round 0. XPSNR is higher than tier-only on all four
+  natural clips, and DISTS on three. **SSIMULACRA2 is lower on every clip** (mean −5.2), and
+  VMAF NEG is lower on three of four, so most of `G`'s gain is in the LPIPS term.
 
 ### Caveats
 
 * The platforms are **simulated**. The ladder rules are plausible but invented, so the specific
   numbers (especially the tier-trick gain) do not carry over to a real platform. The tooling does:
   point `CommandPlatform` at a real upload/download workflow.
-* There is one seed per configuration, on 3-second clips.
+* The clips are 3 seconds long. Apart from the `ugc_strict` samplers (5 seeds) and the learned
+  `G` (4 seeds), each configuration has one seed.
 * The objective is itself a model of quality. Grain and saturation gains are partly what LPIPS and
   VMAF-NEG reward. The found recipe (+contrast, +saturation, unsharp) is close to published VMAF
   and VMAF NEG attacks (Zvezdakova 2019; Siniukov 2021: VMAF NEG +23.6 % with no subjective
-  gain). Until independent metrics such as SSIMULACRA2 and DISTS and a viewer study confirm them,
-  the filter gains are provisional.
+  gain). The P0 checks with SSIMULACRA2, DISTS and XPSNR did not confirm the `ugc_strict` filter
+  gain (see above). Optimising any single metric, these included, lowered at least one of the
+  others (the Goodhart matrix in [P0 results](PROGRESS.md#6-p0-results)). Without a viewer study,
+  no filter gain here is established.
 
 ### What the results show so far
 
-1. The closed loop works, and every sampler beats a naive upload. With one seed, the samplers
-   cannot be told apart.
-2. About 80 % of the gain is the known tier trick. Filtering adds +2–4 on natural footage, and
-   this transfers to unseen natural clips.
+1. The closed loop works, and every sampler beats a naive upload. Over five seeds, GP-BO is the
+   best and most consistent sampler, and CMA-ES sometimes misses the ×2 tier. The objective is
+   reproducible, but the exact grain and sharpening values are not.
+2. About 80 % of the gain is the known tier trick, and every independent metric confirms it.
+   Filtering adds +2–4 *on the objective* on natural footage, but SSIMULACRA2 and XPSNR disagree,
+   so this filter gain is **not confirmed**. A sharpening-only θ (contrast and saturation frozen)
+   is the part that survives two of three judges. At the native tier, the filter gain is
+   contrast hacking.
 3. The same θ hurts graphics and text, so pre-compensation must be content-adaptive.
-4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`.
+4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`. The `ugc_av1`
+   filter gain passes the independent-metric check on average, but it rests on one clip.
 5. A learned `G` exploits its emulator unless it is constrained. With a trust region it beats
-   tier-only on all natural clips. Domain-adaptation rounds did not help yet.
+   tier-only on the objective on most natural clips (not ducks_take_off across seeds), and on
+   XPSNR and DISTS. SSIMULACRA2 is lower on every clip. It beats GP-BO θ only on
+   old_town_cross. Domain-adaptation rounds did not help yet.
 
 ### Next steps
 
 The full backlog is in [`PROGRESS.md`](PROGRESS.md#4-experiment-backlog). Each item lists what is
 compared and what counts as success. In short:
 
-* **P0, make the claims solid:**
+* **P0, make the claims solid: done.** It covered:
   * several seeds;
   * independent metrics (SSIMULACRA2, DISTS, XPSNR);
   * an ablation with the contrast and saturation knobs frozen;
   * a Goodhart matrix (optimise one metric, judge with the others);
   * filter-only search at the native tier.
+
+  The results and verdicts are in [`PROGRESS.md`](PROGRESS.md#6-p0-results).
 * **P1, method improvements:**
   * content-adaptive θ;
   * a real-forward / surrogate-backward estimator for `G`;
