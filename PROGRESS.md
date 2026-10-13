@@ -77,6 +77,8 @@ are larger studies.
 
 ### P0: make the existing claims solid
 
+Execution plan (code changes, commands, decision rules): [`docs/P0-plan.md`](docs/P0-plan.md).
+
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
 | E1 | **Seeds and variance**: 3–5 seeds per sampler on `ugc_strict`, and 3 seeds for `vreg surrogate` | GP-BO vs TPE vs CMA-ES vs random; learned `G` vs GP-BO θ | Mean ± spread reported. A sampler or method "wins" only if the gap is larger than the spread |
