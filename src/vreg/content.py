@@ -163,8 +163,7 @@ def fetch_segment(clip: ManifestClip, out: Path) -> Path:
         return out
     if "%" in src:
         return _fetch_frames(clip, out, n)
-    info = ff.probe(src)
-    tf, opts = _time_filters(info.fps)
+    tf, opts = _time_filters(ff.probe_fps(src))
     ff.run(["-ss", str(clip.start_s), "-i", src, "-an", "-vf", ",".join([*tf, FIT_720P]), *opts,
             "-frames:v", str(n), *MASTER_CODEC, str(out)])
     got = ff.probe(out).frames

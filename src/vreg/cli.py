@@ -144,8 +144,8 @@ def cmd_rescore(args) -> int:
 
     clips = _clips(args.clips)
     for run in args.runs:
-        rescore(Path(run), clips)
-        print((Path(run) / "rescore.md").read_text())
+        rescore(Path(run), clips, tag=args.tag)
+        print((Path(run) / (f"rescore_{args.tag}.md" if args.tag else "rescore.md")).read_text())
     return 0
 
 
@@ -170,7 +170,15 @@ def cmd_surrogate(args) -> int:
     run_loop(RUNS / (args.name or "surrogate"), clips, plat, rounds=args.rounds, upscale=args.upscale,
              n_variants=args.variants, emulator_steps=args.emulator_steps, generator_steps=args.generator_steps,
              finetune_fraction=args.finetune_fraction, trust_weight=args.trust_weight, max_residual=args.max_residual,
-             holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed)
+             holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed, g_loss=args.g_loss,
+             pairs_cache=Path(args.pairs_cache) if args.pairs_cache else None)
+    return 0
+
+
+def cmd_surrogate_eval(args) -> int:
+    from .surrogate.loop import evaluate_trained
+
+    evaluate_trained(Path(args.run), _clips(args.clips), rnd=args.round, tag=args.tag)
     return 0
 
 
@@ -219,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("rescore", help="score naive / tier-only / best (or each G round) with all metrics")
     p.add_argument("runs", nargs="+")
     p.add_argument("--clips", default="all")
+    p.add_argument("--tag", default="", help="write rescore_<tag>.json / .md instead of rescore.json / .md")
     p.set_defaults(fn=cmd_rescore)
 
     p = sub.add_parser("report", help="HTML report for one or more runs")
@@ -247,8 +256,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--emulator-steps", type=int, default=3000)
     p.add_argument("--generator-steps", type=int, default=1500)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--g-loss", default="lpips", choices=["lpips", "dists", "lpips+dists"],
+                   help="perceptual part of G's training loss (G is never judged by it)")
+    p.add_argument("--pairs-cache", help="directory of round-0 pairs shared between runs (default: inside the run)")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_surrogate)
+
+    p = sub.add_parser("surrogate-eval", help="evaluate a trained surrogate run's G on further clips, no retraining")
+    p.add_argument("run")
+    p.add_argument("--clips", required=True)
+    p.add_argument("--round", type=int, default=0)
+    p.add_argument("--tag", default="eval")
+    p.set_defaults(fn=cmd_surrogate_eval)
 
     args = ap.parse_args(argv)
     return args.fn(args)

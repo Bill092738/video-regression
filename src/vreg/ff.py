@@ -119,6 +119,17 @@ def probe(path: str | Path) -> VideoInfo:
     )
 
 
+def probe_fps(src: str | Path) -> float:
+    """Frame rate from the stream header only; unlike :func:`probe` it does not read the whole
+    file, which matters for remote sources."""
+    proc = subprocess.run([ffprobe_bin(), "-v", "error", "-select_streams", "v:0", "-show_entries",
+                           "stream=r_frame_rate", "-of", "csv=p=0", str(src)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise FFmpegError(f"ffprobe failed on {src}: {proc.stderr}")
+    num, _, den = proc.stdout.strip().partition("/")
+    return float(num) / float(den or 1)
+
+
 def read_frames(
     path: str | Path,
     size: tuple[int, int] | None = None,

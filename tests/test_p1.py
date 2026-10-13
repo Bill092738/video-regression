@@ -133,3 +133,12 @@ def test_selectors(tmp_path):
     assert classify.resolve("park_joy,old_town_cross", f) == ["park_joy", "old_town_cross"]
     with pytest.raises(ValueError):
         classify.resolve("@E:train", f)
+
+
+def test_g_is_not_judged_by_its_own_loss():
+    from vreg.rescore import judges_for
+
+    assert judges_for("lpips") == ("ssimulacra2", "dists", "xpsnr")
+    assert judges_for(None) == ("ssimulacra2", "dists", "xpsnr")
+    for loss in ("dists", "lpips+dists"):
+        assert "dists" not in judges_for(loss) and "vmaf_neg" in judges_for(loss)
