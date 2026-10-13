@@ -1,0 +1,53 @@
+\section{Related Work}
+\label{sec:related}
+% Sources: docs/related-work.md. Every claim here must be checked against the cited paper itself
+% before submission; several entries in references.bib are still marked "unverified".
+
+\paragraph{Learned pre-processing for standard codecs.}
+Deep video precoding~\cite{bourtsoulatze2020deep} and deep perceptual
+preprocessing~\cite{chadha2021deep} place a neural network in front of AVC, HEVC, VP9, AV1 or VVC
+encoders and train it through a differentiable proxy of the codec; the decoder is unchanged.
+Rate-perception optimised preprocessing~\cite{ma2023rate} is reported to run in a production
+transcoding service. For user-generated content, a deep pre-processor tuned on pristine data was
+found to make a substantial fraction of clips worse, which motivated adaptive control of the
+pre-processing strength~\cite{zhao2025tridynamic}. Pre-editing before JPEG with a learned network
+is the image analogue~\cite{talebi2021better}. All of these methods are applied by the party that
+runs the encoder. Our setting differs in that the encoder, its configuration and the ladder that
+chooses it are unknown to the optimiser. \todo{check each paper's exact setting and numbers.}
+
+\paragraph{Training through non-differentiable codecs.}
+Codec surrogates replace the real codec by a network during
+training~\cite{tian2021self,chadha2021deep}. Alternatively, the real codec can be run in the
+forward pass while a surrogate supplies the gradient~\cite{pesnel2026scaled}, an instance of the
+straight-through and backward-pass-approximation
+idea~\cite{bengio2013estimating,athalye2018obfuscated}. Accurate differentiable approximations exist
+for simple codecs such as JPEG~\cite{reich2024differentiable}. Our emulator is a surrogate of the
+entire platform pipeline rather than of a single codec.
+
+\paragraph{Optimising against learned models.}
+Optimising against a learned model drives the optimiser towards inputs on which the model
+overestimates the objective. Offline model-based optimisation counters this with conservative
+objective models~\cite{trabucco2021conservative}; model-based reinforcement learning penalises
+ensemble disagreement~\cite{yu2020mopo}; trust-region Bayesian optimisation restricts the search
+locally~\cite{eriksson2019scalable}. We observe the same failure when training a pre-compensation
+through a platform emulator.
+
+\paragraph{Metric hacking.}
+VMAF~\cite{li2016toward} can be raised substantially by sharpening and by colour and contrast
+changes without a subjective improvement~\cite{zvezdakova2019hacking}; the NEG variant reduces but
+does not remove this~\cite{siniukov2021hacking,fingscheidt2026optimizing}. This is an instance of
+Goodhart's law~\cite{manheim2018categorizing}. Our evaluation therefore separates the optimised
+objective from judge metrics, following the recommendation to verify with metrics that were not
+optimised.
+
+\paragraph{Closed-loop adaptation to real platforms.}
+Robust steganography uses transport channel matching: an image is uploaded to a social network
+repeatedly until recompression no longer changes it~\cite{zhao2019improving}. This is the closest
+methodological precedent for a closed loop against a real platform, with a different goal. Work on
+the quality of user-generated content notes that the platform's reference is itself already
+distorted~\cite{yu2021predicting,wang2019youtube}.
+
+\paragraph{Black-box optimisation.}
+We use Gaussian-process Bayesian optimisation~\cite{snoek2012practical,shahriari2016taking}, the
+tree-structured Parzen estimator~\cite{bergstra2011algorithms}, CMA-ES~\cite{hansen2001completely}
+and random search as implemented in Optuna~\cite{akiba2019optuna}.

@@ -315,6 +315,7 @@ tests/          tiny-clip unit tests (run in GitHub Actions)
 docs/img/       figures used in this README
 docs/related-work.md  prior work, overlap check, reusable code and licenses
 docs/P0-plan.md, docs/P1-plan.md  execution plans (P0 done, P1 current)
+docs/paper/     LaTeX paper draft and bibliography (see docs/paper/README.md)
 idea.md         project idea and direction (updated after the prior-work review)
 PROGRESS.md     what is done, what the results show, experiment backlog
 data/, runs/    generated clips and experiment outputs (git-ignored)

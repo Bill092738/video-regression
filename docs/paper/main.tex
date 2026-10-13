@@ -1,0 +1,79 @@
+% main.tex -- paper draft. Build: see README.md in this folder (latexmk -pdf main.tex).
+% Sections live in sections/*.tex so that each part can be edited independently.
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+
+% Figures are shared with the repository docs; make_arxiv.sh flattens this for arXiv.
+\graphicspath{{../img/}}
+
+% ---------------------------------------------------------------- editing macros
+% \todo{...}   something still to write or decide (red, visible in the PDF)
+% \pending{...} a result that depends on an experiment that has not run yet (orange)
+% Set \finaltrue to hide both before submission; the build then fails loudly if any remain
+% (see README.md, "Before submitting").
+\newif\iffinal
+\finalfalse
+\iffinal
+  \newcommand{\todo}[1]{\errmessage{Unresolved TODO: #1}}
+  \newcommand{\pending}[1]{\errmessage{Unresolved PENDING: #1}}
+\else
+  \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+  \newcommand{\pending}[1]{\textcolor{orange}{[PENDING: #1]}}
+\fi
+
+% ---------------------------------------------------------------- notation
+\newcommand{\X}{X}                          % source video
+\newcommand{\U}{U}                          % uploaded video
+\newcommand{\Y}{Y}                          % playback seen by a viewer
+\newcommand{\Gt}{G_{\theta}}                % pre-compensation
+\newcommand{\fp}{f}                         % platform black box
+\newcommand{\Em}{E_{\psi}}                  % learned emulator of f
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\sg}{\operatorname{sg}}         % stop-gradient
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Does Pre-Compensation Help Beyond the Resolution Tier Trick?\\
+\large A Pre-Registered Study of Uploader-Side Optimisation Against Black-Box Video Platforms}
+\author{\todo{Author name} \\ \todo{Affiliation} \\ \todo{email}}
+\date{\todo{date}}
+
+\begin{document}
+\maketitle
+
+\input{sections/abstract}
+\input{sections/introduction}
+\input{sections/related}
+\input{sections/problem}
+\input{sections/method}
+\input{sections/setup}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/statements}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\input{sections/appendix}
+
+\end{document}

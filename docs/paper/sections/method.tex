@@ -1,0 +1,93 @@
+\section{Method}
+\label{sec:method}
+
+\subsection{Parametric pre-compensation}
+\label{sec:parametric}
+
+The interpretable pre-compensation is a filter chain implemented with FFmpeg~\cite{ffmpeg}:
+spatio-temporal denoising (\texttt{hqdn3d}), contrast and saturation (\texttt{eq}), Lanczos
+upscaling, an unsharp mask on luma, and temporal luma grain. \Cref{tab:space} lists the seven
+parameters. All are continuous; the upscale factor is snapped to $\{1, 1.5, 2\}$ and the unsharp
+radius to $\{1,2,3\}$ (kernel size $3,5,7$), so the same space serves every sampler. The upscale
+factor is the tier component $s$ of \cref{def:decomposition}; the other six form the filter
+component $\varphi$. The upload is encoded near-losslessly (x264, CRF 10), so the uploader's own
+compression is not a confounder.
+
+\begin{table}[t]
+  \centering
+  \caption{Parameters of the interpretable pre-compensation. The identity value makes a step a
+  no-op; trial 0 of every search is the identity (the naive upload).}
+  \label{tab:space}
+  \begin{tabular}{@{}llll@{}}
+    \toprule
+    Parameter & Range & Identity & Role \\
+    \midrule
+    denoise        & $[0, 6]$       & 0   & \texttt{hqdn3d} strength \\
+    contrast       & $[0.90, 1.15]$ & 1   & \texttt{eq} contrast \\
+    saturation     & $[0.85, 1.25]$ & 1   & \texttt{eq} saturation \\
+    upscale        & $\{1, 1.5, 2\}$ & 1  & upload resolution factor (tier) \\
+    sharpen        & $[0, 2]$       & 0   & unsharp amount on luma \\
+    sharpen\_radius & $\{1, 2, 3\}$ & 1   & unsharp kernel $3\times3$, $5\times5$, $7\times7$ \\
+    grain          & $[0, 15]$      & 0   & temporal luma noise (dither) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Search.}
+We compare Gaussian-process Bayesian optimisation (GP-BO, 8 start-up trials), multivariate
+TPE (8 start-up trials), CMA-ES (population 8) and random search, all from
+Optuna~\cite{akiba2019optuna}, with a budget of 40 trials. A trial renders the upload, sends it
+through the platform and scores the playback on every clip of the training set; the objective is
+the mean over clips. Evaluations are cached by $(\text{clip},\theta)$, so studies, transfers and
+re-scoring share work.
+
+\subsection{Learned pre-compensation through an emulator}
+\label{sec:learned}
+
+\paragraph{Networks.}
+Both the emulator $\Em$ and the pre-compensation $\Gt$ are residual U-Nets~\cite{ronneberger2015unet}
+of the form $y = x + r\tanh(h(x))$, with the last convolution initialised to zero so that each
+network starts as the identity. The emulator has width 32, three levels and $r=1$. The
+pre-compensation has width 24, two levels and a hard bound $r=\delta=0.06$ on its per-pixel change
+(on a $[0,1]$ scale). Both operate on RGB frames; the upload tier is fixed at $\times 2$ for the
+learned route, since the tier is settled by the parametric study.
+
+\paragraph{Training.}
+In round 0 we send, for each training clip, the identity and five random parametric
+pre-compensations (at the source resolution) through the black box, and keep every fourth frame of
+each (upload, playback) pair. The emulator is trained with an $\ell_1$ loss on aligned
+$256\times256$ crops (AdamW, 3000 steps). The pre-compensation is then trained through the frozen
+emulator with
+\begin{equation}
+  \mathcal{L}(\theta) = \mathrm{LPIPS}\big(\Em(\Gt(x)), x\big)
+  + \big\|\Em(\Gt(x)) - x\big\|_1
+  + \lambda\,\big\|\Gt(x) - x\big\|_1,
+  \label{eq:gloss}
+\end{equation}
+with LPIPS (AlexNet)~\cite{zhang2018unreasonable}, $\lambda=2$ (the trust region of
+\cref{eq:trust}) and 1500 Adam steps. In P1 the perceptual term can also be
+DISTS~\cite{ding2022image} or the sum of both. After each round, $\Gt$'s outputs are sent through the
+real black box; their real playback is added to the emulator's data for the next round (domain
+adaptation), and the emulator's PSNR against the real playback is logged as the measured
+sim-to-real gap.
+
+\subsection{Metrics}
+\label{sec:metrics}
+
+All metrics compare the playback, resampled bicubically to the source resolution, with the source.
+
+\paragraph{Objective.}
+The default objective is
+\begin{equation}
+  \text{composite} = \text{VMAF}_{\text{NEG}} - 40\cdot\text{LPIPS} - 2\cdot\text{CAMBI},
+\end{equation}
+combining the no-enhancement-gain variant of VMAF~\cite{li2016toward}, LPIPS and the CAMBI banding
+index~\cite{tandon2021cambi}. VMAF NEG is used because plain VMAF rewards sharpening, which an
+optimiser would exploit. The weights were set by hand to put the terms on a comparable scale.
+\todo{justify the weights or report sensitivity to them.}
+
+\paragraph{Judges.}
+Three metrics are never optimised and serve as judges (\cref{def:confirmed}):
+SSIMULACRA~2~\cite{sneyers2022ssimulacra2} (every third frame), DISTS~\cite{ding2022image} (every
+third frame) and luma XPSNR~\cite{helmrich2020xpsnr} (FFmpeg \texttt{xpsnr} filter). PSNR and SSIM
+are recorded for reference.

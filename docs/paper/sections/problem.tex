@@ -1,0 +1,181 @@
+\section{Problem Formulation}
+\label{sec:problem}
+
+\subsection{The platform as a black-box channel}
+
+Let $\X$ be a source video. The uploader applies a pre-compensation $\Gt$ with parameters
+$\theta\in\Theta$ and uploads $\U=\Gt(\X)$. The platform returns the playback that a viewer receives,
+\begin{equation}
+  \Y = \fp(\U) = R \circ C_{\tau(\U)} \circ D_{\tau(\U)}(\U),
+  \label{eq:platform}
+\end{equation}
+where $\tau(\U)$ is the \emph{ladder policy} that selects a tier from observable properties of the
+upload (resolution, bitrate, possibly content and popularity), $D_\tau$ is the tier's ingest
+filtering (e.g.\ denoising), $C_\tau$ is the tier's encoder with its rate control, and $R$ resamples
+to the rendition served to the viewer. The uploader can only query $\fp$; $\tau$, $D$ and $C$ are
+unknown, $\tau$ is piecewise constant, and $C$ includes quantisation, so $\fp$ is neither known nor
+differentiable. Each query costs a real upload.
+
+Playback quality is measured against the source with a full-reference metric $M(\Y,\X)$ (higher is
+better), after resampling $\Y$ to the resolution of $\X$. The uploader's problem is
+\begin{equation}
+  \theta^\star = \argmax_{\theta\in\Theta}\; J_M(\theta),\qquad
+  J_M(\theta) = \E_{\X\sim\mathcal{D}}\big[M\big(\fp(\Gt(\X)),\X\big)\big],
+  \label{eq:objective}
+\end{equation}
+over a distribution $\mathcal{D}$ of source videos. In practice the expectation is an average over a
+finite set of clips.
+
+\subsection{Tier gain and filter gain}
+
+We split the parameters into a \emph{tier} component $s$ (here the upload scale factor, which
+changes $\tau(\U)$) and a \emph{filter} component $\varphi$ (sharpening, grain, colour, denoising),
+$\theta=(s,\varphi)$, with identities $s_0$ (no rescaling) and $\varphi_0$ (no filtering).
+
+\begin{definition}[Gain decomposition]
+\label{def:decomposition}
+For parameters $\theta=(s,\varphi)$, the total gain over a naive upload splits as
+\begin{equation}
+  \underbrace{J_M(s,\varphi)-J_M(s_0,\varphi_0)}_{\text{total gain}}
+  = \underbrace{J_M(s,\varphi_0)-J_M(s_0,\varphi_0)}_{\text{tier gain}}
+  + \underbrace{J_M(s,\varphi)-J_M(s,\varphi_0)}_{\text{filter gain at tier } s}.
+  \label{eq:decomposition}
+\end{equation}
+\end{definition}
+
+The split is exact, but it depends on the order: the filter gain at tier $s$ generally differs from
+the filter gain at $s_0$, because the filter interacts with the tier's encoder and ingest filtering.
+We report the tier-first order, since the tier is discrete and its effect is large, and we measure
+the filter gain at the native tier separately (\cref{sec:results-p0}). A pre-compensation is useful
+beyond the creator heuristic only if its filter gain is positive.
+
+\subsection{Objectives, judges and Goodhart's law}
+\label{sec:goodhart}
+
+The metric $M$ is a model of perceived quality $Q$. Write $M = Q + \varepsilon$, where
+$\varepsilon(\theta)$ is the metric's error at the playback produced by $\theta$. The following
+statement is a version of the optimiser's curse~\cite{smith2006optimizer}; we state it because it
+explains why the gains we report on the optimised metric are biased upwards.
+
+\begin{proposition}[Selection inflates the optimised metric]
+\label{prop:curse}
+Let $\Theta_n\subset\Theta$ be the finite set of candidates evaluated by a search, let
+$\hat\theta=\argmax_{\theta\in\Theta_n} J_M(\theta)$, and let
+$\theta^\dagger=\argmax_{\theta\in\Theta_n} J_Q(\theta)$ be the truly best candidate. If the metric
+error has zero mean at $\theta^\dagger$, $\E[\varepsilon(\theta^\dagger)]=0$ (for instance, because
+the error is independent of $Q$ and unbiased at every fixed $\theta$), then
+\begin{equation}
+  \E\big[\varepsilon(\hat\theta)\big] \;\ge\; \E\big[J_Q(\theta^\dagger)-J_Q(\hat\theta)\big] \;\ge\; 0 .
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+By the definition of $\hat\theta$, $J_Q(\hat\theta)+\varepsilon(\hat\theta) \ge
+J_Q(\theta^\dagger)+\varepsilon(\theta^\dagger)$, hence $\varepsilon(\hat\theta) \ge
+\varepsilon(\theta^\dagger) + J_Q(\theta^\dagger)-J_Q(\hat\theta)$. Take expectations; the last
+difference is non-negative by the definition of $\theta^\dagger$.
+\end{proof}
+
+The proposition covers errors that are noise-like. A more harmful case is an error with structure:
+if $\varepsilon$ grows along some direction of $\Theta$ (for example, a metric that rewards a
+contrast increase), the optimiser moves along that direction and the inflation is no longer bounded
+by the noise level. This is the regime documented for VMAF and VMAF
+NEG~\cite{zvezdakova2019hacking,siniukov2021hacking}.
+
+We therefore distinguish the \emph{objective} $M$ from a set of \emph{judges}
+$\mathcal{J}=\{M_1,\dots,M_K\}$, metrics that the optimiser never sees.
+
+\begin{definition}[Judge-confirmed gain]
+\label{def:confirmed}
+A gain of configuration $a$ over configuration $b$ is \emph{judge-confirmed} if at least $k$ of the
+$K$ judges assign $a$ a higher mean score than $b$ over the evaluation clips. In P0 we use $K=3$ and
+$k=2$; in P1 we additionally require a confidence interval over clips that excludes zero
+(\cref{sec:decision}).
+\end{definition}
+
+\begin{remark}
+If the judges' errors were independent of each other and of the objective's error, the probability
+that a gain which is spurious for $Q$ appears on $k$ of $K$ judges would shrink geometrically in
+$k$. Real metrics share failure modes (several react to sharpness or contrast in the same way), so
+agreement among judges is evidence, not proof; a viewer study remains the final arbiter.
+\end{remark}
+
+\subsection{Optimising through a learned emulator}
+\label{sec:emulator-theory}
+
+For a learned pre-compensation, $\Gt$ is a network with millions of parameters, too many for
+black-box search. We fit an emulator $\Em\approx\fp$ on pairs $\{(\U_i,\fp(\U_i))\}$ collected from the
+black box, and train $\Gt$ by gradient ascent on the emulated objective
+\begin{equation}
+  J_M^{E}(\theta)=\E_{\X}\big[M\big(\Em(\Gt(\X)),\X\big)\big].
+\end{equation}
+If $M$ is $L$-Lipschitz in its first argument (with respect to a norm $\|\cdot\|$), then
+\begin{equation}
+  J_M(\theta) \;\ge\; J_M^{E}(\theta) - L\,\E_{\X}\big\|\fp(\Gt(\X))-\Em(\Gt(\X))\big\|.
+  \label{eq:emulator-bound}
+\end{equation}
+The emulator error in the last term is small only on the distribution of uploads that $\Em$ was
+trained on. Gradient ascent on $J_M^E$ moves $\Gt(\X)$ away from that distribution, towards inputs
+where the emulator overestimates $M$, so the gap can grow without limit. This is the failure mode of
+offline model-based optimisation~\cite{trabucco2021conservative,yu2020mopo}. We measure the gap
+directly, by sending $\Gt(\X)$ through the real black box and reporting the emulator's PSNR against
+the real playback, and we control it with a trust region:
+\begin{equation}
+  \min_\theta\; -J_M^{E}(\theta) + \lambda\,\E_{\X}\|\Gt(\X)-\X\|_1
+  \quad\text{s.t.}\quad \|\Gt(\X)-\X\|_\infty\le\delta,
+  \label{eq:trust}
+\end{equation}
+which keeps the uploads near the identity-like uploads in the emulator's training data.
+
+A further option, not used in the experiments reported here, is a straight-through
+estimator~\cite{bengio2013estimating,athalye2018obfuscated,pesnel2026scaled}: use the real playback
+in the forward pass and the emulator only for the gradient,
+\begin{equation}
+  \tilde\Y = \fp(\U) + \Em(\U) - \sg\big(\Em(\U)\big),
+\end{equation}
+where $\sg$ is the stop-gradient operator. The objective's value is then always the real one, and
+only its gradient is approximate.
+
+\subsection{Content-scoped claims and gating}
+\label{sec:content-theory}
+
+The platform's damage depends systematically on content: rate control and ingest filtering respond
+to texture, motion and flat regions. A pre-compensation that is not useful on average may still be
+useful on a subset. Let $c(\X)$ be a class label computed from content features (\cref{sec:setup}),
+with classes $k=1,\dots,K_c$ and class probabilities $p_k$, and let the class-conditional gain of
+configuration $a$ over a baseline $b$ be
+\begin{equation}
+  \Delta_k(a,b)=\E\big[M(\fp(a(\X)),\X)-M(\fp(b(\X)),\X)\,\big|\,c(\X)=k\big].
+\end{equation}
+A \emph{gate} $\pi$ assigns one configuration to each class. Its gain over the baseline is
+$\sum_k p_k\,\Delta_k(\pi(k),b)$, which is at least the gain of the best single configuration if
+$\pi(k)$ is chosen per class with the true $\Delta_k$.
+
+The difficulty is estimation. If the classes, the gate or the claim are chosen on the same clips
+that are used to estimate $\Delta_k$, the estimate is inflated by selection, exactly as in
+\cref{prop:curse}, with the choice of subgroup playing the role of the search. We therefore:
+\begin{enumerate}
+  \item define the classes from content features by a fixed rule, before any learned model is
+        trained;
+  \item split the clips into train, development and confirmation sets, grouped by source so that
+        no source contributes to two splits;
+  \item choose the gate and the claimed class on the development set only;
+  \item evaluate the confirmation set once.
+\end{enumerate}
+This is a pre-registered design in the sense of~\cite{nosek2018preregistration}. The classes,
+splits and decision rules are committed to the repository before training (\cref{sec:setup}).
+
+\subsection{Decision rule}
+\label{sec:decision}
+
+The unit of analysis is the clip: seeds are averaged within a clip, and uncertainty is estimated
+over clips with a percentile bootstrap~\cite{efron1993introduction} (10{,}000 resamples). For the
+content-scoped hypothesis, a learned pre-compensation is said to help on class $k$ if, on the
+confirmation clips of that class:
+\begin{enumerate}
+  \item at least two judges show a mean gain over the class-tuned sharpening baseline whose 95\%
+        bootstrap interval excludes zero (97.5\% if a second class is tested);
+  \item the mean SSIMULACRA2 gain is non-negative;
+  \item the sign of the effect holds for at least two of three training seeds.
+\end{enumerate}
+A judge that is part of the network's training loss is not used to judge it.

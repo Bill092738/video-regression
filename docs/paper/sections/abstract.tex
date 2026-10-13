@@ -1,0 +1,21 @@
+% Abstract. arXiv's abstract field is plain text and limited to 1920 characters; keep this in sync
+% with what you paste into the submission form (no LaTeX commands, no citations there).
+\begin{abstract}
+Video platforms re-encode every upload with a policy the uploader cannot observe: the codec, bit
+budget and ingest filtering depend on properties of the upload itself. A common creator heuristic
+exploits this by uploading at a higher resolution to obtain a better encoding tier. We ask whether
+an uploader can recover quality \emph{beyond} this tier trick by optimising a pre-compensation
+applied before upload, treating the platform as a non-differentiable black box. We study two
+routes, sample-efficient black-box search over an interpretable filter chain and a learned
+pre-compensation network trained through a differentiable emulator of the platform, and we
+separate the tier gain from the filter gain. On simulated platforms, the optimised pre-compensation
+improves the training objective by a large margin, but independent metrics that were not optimised
+(SSIMULACRA2, XPSNR, DISTS) confirm only the tier gain; most of the apparent filter gain is colour
+and contrast change that the objective rewards. Every single-metric objective we tried degrades at
+least one metric it did not optimise. A learned pre-compensation exploits its emulator unless it is
+constrained by a trust region. We then test, in a pre-registered design with held-out
+confirmation clips, whether a learned pre-compensation helps for a defined content class.
+\pending{P1 result: H1 confirmed or not; gate result.}
+\pending{P2 result: real-platform probe and closed loop; viewer study.}
+Code, clip manifests and the pre-registration are released.
+\end{abstract}

@@ -1,0 +1,71 @@
+\section{Additional P0 Details}
+\label{app:p0}
+
+\paragraph{Decomposition per clip (seed 0, \texttt{ugc\_strict}, composite).}
+\Cref{tab:transfer} lists the naive, tier-only and best configuration per clip. The best
+configuration was found on park\_joy and old\_town\_cross; the other clips are held out.
+
+\begin{table}[h]
+  \centering
+  \caption{Composite objective per clip for the naive upload, the tier-only upload ($\times2$) and the
+  GP-BO configuration (seed 0). Composite only; see \cref{tab:e2} for the judges.}
+  \label{tab:transfer}
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    Clip & Naive & Tier-only & Best & Filter gain \\
+    \midrule
+    old\_town\_cross (train) & 54.66 & 60.40 & 62.37 & +1.97 \\
+    park\_joy (train)        & 4.24  & 22.21 & 25.24 & +3.03 \\
+    ducks\_take\_off         & 9.39  & 25.97 & 29.37 & +3.40 \\
+    in\_to\_tree             & 49.49 & 58.28 & 61.99 & +3.71 \\
+    sky\_gradient (synthetic) & 92.44 & 93.07 & 93.16 & +0.09 \\
+    mandelbrot (synthetic)   & $-18.98$ & $-10.22$ & $-9.38$ & +0.84 \\
+    testsrc (synthetic)      & 68.26 & 69.43 & 57.87 & $-11.56$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Goodhart matrix (numbers).}
+Gains over tier-only, mean over the four natural clips; bold cells are optimised by the row's
+objective (the composite contains VMAF NEG and LPIPS).
+
+\begin{table}[h]
+  \centering
+  \small
+  \caption{Numbers behind \cref{fig:goodhart}.}
+  \label{tab:goodhart}
+  \begin{tabular}{@{}lrrrrrr@{}}
+    \toprule
+    Objective & composite & VMAF\textsubscript{NEG} & LPIPS & SSIMU2 & DISTS & XPSNR \\
+    \midrule
+    composite   & \textbf{+2.99} & \textbf{+1.86} & \textbf{+0.0273} & $-2.03$ & +0.0026 & $-0.59$ \\
+    VMAF NEG    & +2.52 & \textbf{+1.97} & +0.0126 & $-2.01$ & $-0.0008$ & $-0.39$ \\
+    SSIMULACRA2 & +1.31 & +1.10 & +0.0047 & \textbf{+0.54} & +0.0011 & $-0.24$ \\
+    LPIPS       & +0.92 & $-1.38$ & \textbf{+0.0556} & $-14.89$ & $-0.0065$ & $-1.52$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Learned pre-compensation versus the parametric configuration across seeds.}
+
+\begin{table}[h]
+  \centering
+  \small
+  \caption{Composite and SSIMULACRA2 per clip, mean $\pm$ sd over seeds ($G$: 3 seeds, round 0;
+  GP-BO configuration: 5 seeds).}
+  \label{tab:g-vs-theta}
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrrrr@{}}
+    \toprule
+    & & \multicolumn{2}{c}{composite} & \multicolumn{2}{c}{SSIMULACRA2} \\
+    \cmidrule(lr){3-4}\cmidrule(lr){5-6}
+    Clip & Tier-only & GP-BO & $G$ & GP-BO & $G$ \\
+    \midrule
+    park\_joy (train)          & 22.21 & $24.95\pm0.17$ & $22.75\pm0.21$ & $-23.57\pm0.94$ & $-27.11\pm0.46$ \\
+    old\_town\_cross (train)   & 60.40 & $62.62\pm0.16$ & $65.39\pm0.87$ & $51.48\pm0.78$ & $50.87\pm0.96$ \\
+    ducks\_take\_off (train for $G$) & 25.97 & $29.09\pm0.27$ & $25.45\pm0.38$ & $-23.29\pm1.10$ & $-26.99\pm0.98$ \\
+    in\_to\_tree (held out)    & 58.28 & $62.59\pm0.40$ & $62.32\pm0.81$ & $42.73\pm0.66$ & $38.31\pm1.54$ \\
+    sky\_gradient (held out)   & 93.07 & $92.87\pm0.29$ & $82.99\pm1.56$ & $86.18\pm0.95$ & $66.91\pm4.47$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}

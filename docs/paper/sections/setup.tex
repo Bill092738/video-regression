@@ -1,0 +1,108 @@
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Simulated platforms}
+
+The simulated platforms reproduce behaviours that real platforms are reported to have: the ladder is
+selected by the upload resolution, ingest denoising and capped-CRF rate control depend on the tier,
+and the viewer receives a fixed 720p rendition (\cref{tab:platforms}). The ladder rules are
+plausible but invented; the tier gain is therefore real in the simulator by construction, and its
+size says nothing about a real platform. The optimiser only calls
+$\text{process}(\text{upload})\to\text{playback}$.
+
+\begin{table}[t]
+  \centering
+  \caption{Hidden tiers of the simulated platforms. Rate control is capped CRF (maximum rate and
+  buffer equal to the cap); playback is 720p.}
+  \label{tab:platforms}
+  \small
+  \begin{tabular}{@{}lllrrl@{}}
+    \toprule
+    Platform & Upload height & Codec & CRF & Cap (kb/s) & Ingest denoise \\
+    \midrule
+    \multirow{3}{*}{\texttt{ugc\_strict}}
+      & $\ge 1440$ & x265 (fast)   & 26 & 2000 & 1.5:1.5:4:4 \\
+      & $\ge 1080$ & x264 (medium) & 25 & 1600 & 2:2:6:6 \\
+      & otherwise  & x264 (medium) & 27 & 1200 & 3:3:8:8 \\
+    \midrule
+    \multirow{2}{*}{\texttt{ugc\_av1}}
+      & $\ge 1440$ & SVT-AV1 (preset 10) & 36 & 1800 & none \\
+      & otherwise  & x264 (medium)       & 24 & 1800 & 1:1:3:3 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Clips}
+
+All clips are normalised to the same master format: $1280\times720$, 30\,fps, 3\,s (90 frames),
+losslessly encoded.
+
+\paragraph{P0 set.}
+Four natural sequences from the SVT multi-format test set~\cite{haglund2006svt}, distributed by
+Xiph.org (park\_joy, old\_town\_cross, ducks\_take\_off, in\_to\_tree), and three synthetic clips
+(a slowly moving gradient, a zooming fractal and a test pattern with text). Searches train on
+park\_joy and old\_town\_cross; the other clips are held out.
+
+\paragraph{P1 set.}
+77 segments from 47 sources, each with a recorded license: 53 natural segments (Xiph.org: SVT, TUM,
+NTIA/ITS and public-domain video-conference sequences), 14 animation segments (Blender open movies
+and rendered e-card sequences), 4 rendered screen-content segments and 6 synthetic segments.
+Datasets without clear license terms were excluded. \todo{cite the sources individually; check
+which licenses allow figures in a public paper (research-only sources should not appear in figures).}
+Frame rates of 50/60\,fps are reduced to 30\,fps by dropping frames; 24/25\,fps sources are
+retimed frame for frame, which speeds their motion up by 1.2--1.25$\times$.
+
+\paragraph{Content classes.}
+For each clip we compute the ITU-T P.910 spatial and temporal information (SI, TI; maximum over
+frames)~\cite{itup910}, the fraction of $16\times16$ luma blocks with standard deviation below 2
+(\emph{flat fraction}) and the fraction of luma values below 40 (\emph{dark fraction}). Classes are
+assigned by a fixed rule, in this order:
+\begin{itemize}
+  \item \textbf{D} (graphics, text, screen, animation): source type is not natural;
+  \item \textbf{C} (flat or dark): flat fraction $\ge 0.5$ or dark fraction $\ge 0.5$;
+  \item \textbf{B} (dense texture or high motion): SI or TI at or above its 66th percentile over the
+        natural clips not in C (SI $\ge 109.3$ or TI $\ge 33.1$);
+  \item \textbf{A} (natural, low motion, moderate detail): otherwise.
+\end{itemize}
+Splits are 50/25/25\,\% (train, development, confirmation) per class, grouped by source across
+classes. \Cref{tab:classes} gives the counts. Class C received a single clip; it is reported but
+excluded from training and from every statistical test, and its gate entry is fixed in advance to
+the tier-only configuration. The rule, thresholds, splits and gate entry for C were committed to the
+repository before any training.
+
+\begin{table}[t]
+  \centering
+  \caption{Content classes and splits of the P1 set (frozen before training).}
+  \label{tab:classes}
+  \begin{tabular}{@{}lrrrrr@{}}
+    \toprule
+    Class & Train & Dev & Confirm & Report only & Sources \\
+    \midrule
+    A: natural, low motion, moderate detail & 13 & 7 & 7 & -- & 17 \\
+    B: dense texture or high motion         & 13 & 6 & 6 & -- & 14 \\
+    C: flat or dark                         & -- & -- & -- & 1 & 1 \\
+    D: graphics, text, screen, animation    & 12 & 6 & 6 & -- & 17 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Hypotheses (P1, pre-registered)}
+
+\begin{itemize}
+  \item \textbf{H1} (confirmatory): on class A, a learned pre-compensation beats the class-tuned
+        sharpening-only configuration (\cref{sec:decision}).
+  \item \textbf{H2} (exploratory): on class B it does not, because the emulator is least accurate on
+        dense texture.
+  \item \textbf{H3} (exploratory): on classes C and D every filter, the learned one included, is worse
+        than tier-only, so the gate should disable filtering. H3 is not testable for C ($n=1$).
+\end{itemize}
+
+\paragraph{Baselines.}
+Naive upload; tier-only ($\times2$); the global sharpening-only configuration found in P0; and a
+class-tuned sharpening-only configuration (GP-BO, 15 trials on the class's training clips, with every
+knob except the unsharp amount and radius frozen). The class-tuned sharpening-only configuration is
+the baseline a learned pre-compensation must beat.
+
+\subsection{Compute}
+One workstation with a 6-core CPU and an RTX 4060 GPU. A trial costs about 15--40\,s per clip.
+\todo{report total GPU and CPU hours per experiment.}

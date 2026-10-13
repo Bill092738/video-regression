@@ -1,0 +1,54 @@
+\section{Introduction}
+\label{sec:intro}
+
+User-generated video reaches its viewers only after the hosting platform has re-encoded it. The
+platform decides, from properties of the upload that the uploader controls only indirectly, which
+codec, which rate-control target and which ingest filtering to apply, and which rendition each
+viewer receives~\cite{meta2021facebook}. None of these decisions is documented, and none can be
+differentiated through. As a consequence, uploading the best possible master is not the same as
+delivering the best possible playback.
+
+Creators have developed heuristics for this situation. The best known is the \emph{tier trick}:
+upscaling a 1080p video to 1440p or 4K before upload so that the platform assigns a more efficient
+codec and a larger bit budget. Whether anything beyond this heuristic is available to an uploader
+is an open question. Encoder-side pre-processing is well studied: learned pre-processors in front of
+standard encoders reduce bitrate at equal quality~\cite{bourtsoulatze2020deep,chadha2021deep,
+ma2023rate,zhao2025tridynamic}. These methods, however, are deployed by the party that runs the
+encoder and knows its settings. The uploader faces a different problem: the encoder, its settings
+and the ladder that selects them are hidden, and every evaluation costs a real upload.
+
+\paragraph{This paper.}
+We formulate uploader-side pre-compensation as black-box optimisation of a transform
+$\Gt$ applied before upload, so that the playback $\Y = \fp(\Gt(\X))$ is close to the source
+$\X$ (\cref{sec:problem}). We study two routes: sample-efficient search over an interpretable
+seven-parameter filter chain, and a learned residual network trained through a differentiable
+emulator of the platform (\cref{sec:method}). Our evaluation is designed around two pitfalls that we
+found to dominate the outcome:
+\begin{enumerate}
+  \item \textbf{Tier gain versus filter gain.} Most of the improvement comes from selecting a
+        better encoding tier. We decompose every result into the tier gain and the filter gain on
+        top of it.
+  \item \textbf{Objective versus judge.} An optimiser finds whatever its objective rewards. We
+        separate the optimised metric from independent judge metrics, and we count a gain only if
+        the judges agree~\cite{zvezdakova2019hacking,siniukov2021hacking}.
+\end{enumerate}
+
+\paragraph{Contributions.}
+\begin{itemize}
+  \item A formulation of uploader-side pre-compensation against an adaptive, non-differentiable
+        platform pipeline, with a decomposition of the gain into a tier component and a filter
+        component (\cref{sec:problem}).
+  \item Evidence, on simulated platforms, that the filter gain found by optimising a composite of
+        VMAF NEG, LPIPS and CAMBI is not confirmed by SSIMULACRA2 and XPSNR, and that every
+        single-metric objective degrades at least one judge it does not optimise (a ``Goodhart
+        matrix'', \cref{sec:results-p0}).
+  \item A documented failure mode of emulator-based training (exploitation of the emulator) and its
+        mitigation by a trust region (\cref{sec:results-p0}).
+  \item A pre-registered, content-scoped test of a learned pre-compensation with a content gate,
+        evaluated once on held-out confirmation clips (\cref{sec:results-p1}).
+        \pending{state the outcome.}
+  \item \pending{Real-platform measurements: ladder probe, closed loop and viewer study
+        (\cref{sec:results-p2}).}
+  \item An open-source implementation, clip manifests with per-clip licenses, and the
+        pre-registration files.
+\end{itemize}

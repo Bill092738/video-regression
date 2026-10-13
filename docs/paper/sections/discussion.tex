@@ -1,0 +1,29 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{What an uploader can gain.}
+On the simulated platforms, the tier choice dominates and is confirmed by every judge. The filter
+gain on top of it is small, depends on the platform, and is mostly not confirmed by metrics that were
+not optimised. The only filter that survives two of three judges is plain sharpening.
+\pending{update with the P1 verdict: whether a learned pre-compensation adds anything for a defined
+content class, and with the real-platform results.}
+
+\paragraph{Evaluation lessons.}
+Three practices changed our conclusions and, we believe, should be standard for pre-processing work:
+decomposing the gain into the tier gain and the filter gain; judging with metrics that the optimiser
+never sees; and reporting variability across seeds and clips rather than single runs. Without them,
+the composite results alone would have read as a consistent filter gain of about three points over
+the tier trick on every natural clip.
+
+\paragraph{Limitations.}
+\begin{itemize}
+  \item Most results use simulated platforms whose ladders are plausible but invented.
+        \pending{state what the real-platform probe confirmed or contradicted.}
+  \item Clips are 3\,s long and 720p. Natural content comes from professionally shot test
+        sequences, not phone-recorded user content.
+  \item Class C has a single clip, so the hypothesis about flat and dark content is untested.
+        Confirmation splits contain six or seven clips per class, which limits statistical power.
+  \item Retiming 24/25\,fps sources to 30\,fps speeds up their motion and raises TI.
+  \item The composite objective's weights were set by hand.
+  \item No metric is a substitute for viewers. \pending{viewer study.}
+\end{itemize}
