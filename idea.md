@@ -67,6 +67,38 @@ already known. It is:
 > unknown and adaptive platform pipeline, beyond the known tier trick? Does that gain hold up
 > under metrics that the optimiser did not optimise, and under human viewing?
 
+### 3.1 Direction after P0: a content-scoped claim
+
+The P0 checks (simulated platform; details in `PROGRESS.md` §6) changed the picture:
+
+* **The tier gain is real** under every independent judge, but it is common knowledge.
+* **The filter gain beyond the tier was not confirmed** across content in general. Most of it was
+  colour and contrast that the objective rewards and the independent judges do not.
+* **Plain sharpening is the only filter that survives** two of three judges.
+* **The learned `G` wins only narrowly**: on one clip, and only on the objective.
+
+A claim that holds "for all videos" is therefore not supported. The platform's damage is not
+random across content, though. Rate control and ingest denoise react systematically to texture,
+motion and flat areas, so a learned `G` can be useful where it is targeted. The research
+question is narrowed to:
+
+> For which **pre-defined content classes** does a learned pre-compensation recover quality beyond
+> both the tier trick and simple sharpening, as judged by metrics it was not trained on? Can a
+> content gate apply it only there, without hurting any other class?
+
+Two conditions keep this honest:
+* **Pre-registration.** Classes are defined from measurable features (SI/TI, flat and dark
+  fractions, source type) and fixed, together with the hypotheses, splits and decision rules,
+  before any `G` is trained. A held-out confirmation split is evaluated once. Picking the class
+  after seeing where `G` wins would be subgroup selection.
+* **Platform noise is a separate question.** Systematic differences between content types are
+  what `G` should learn. Real-platform non-determinism, where the same file uploaded twice comes
+  back differently, is measured separately (P2).
+
+A negative result is also useful: if no class beats sharpening, the uploader's gain beyond the
+tier trick is plain sharpening, and a learned `G` is not worth its cost. The plan is
+[`docs/P1-plan.md`](docs/P1-plan.md).
+
 ## 4. Approach
 
 ### 4.1 Black-box search over an interpretable θ
@@ -114,13 +146,16 @@ encoder behaves:
   also exactly where metric hacking lives, so every gain here must be confirmed by an independent
   metric.
 * **Content adaptivity.** The best θ for natural footage damages graphics and text. θ should
-  depend on content features or be chosen per shot.
+  depend on content features or be chosen per shot. After P0, this is the main direction (§3.1):
+  a content gate decides between a learned `G`, sharpening only, and no filtering.
 
 ## 6. Evaluation principles
 
 1. **Baselines in every table:**
    * naive upload;
    * tier trick only (upscale only);
+   * sharpening-only θ, which is the strongest surviving filter after P0 and the baseline a
+     learned `G` must beat;
    * a common creator recipe;
    * the found θ or the learned `G`.
 2. **Separate the objective from the judge.** Optimise one metric (or composite), and report

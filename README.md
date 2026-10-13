@@ -36,6 +36,11 @@ Two optimisation routes are implemented, matching section 3 of the idea:
   adaptive** platform pipeline: ladder choice, ingest filtering, rate control and the served
   rendition. It runs in a closed loop with a small real-upload budget, and reports how much
   playback quality is recovered **beyond** the tier trick.
+* **Current direction (after P0):** the filter gain beyond the tier trick was not confirmed for
+  content in general. Only plain sharpening survives the independent judges. P1 therefore tests
+  a **content-scoped** claim: for which **pre-registered content classes** does a learned `G`
+  beat both the tier trick and class-tuned sharpening, with a content gate that switches
+  filtering off elsewhere ([`docs/P1-plan.md`](docs/P1-plan.md)).
 
   The survey, the overlap check and the license notes for reusable code are in
   [`docs/related-work.md`](docs/related-work.md). The updated direction is in
@@ -274,8 +279,16 @@ compared and what counts as success. In short:
   * filter-only search at the native tier.
 
   The results and verdicts are in [`PROGRESS.md`](PROGRESS.md#6-p0-results).
-* **P1, method improvements:**
-  * content-adaptive θ;
+* **P1 (current), content-scoped learned pre-compensation**
+  ([`docs/P1-plan.md`](docs/P1-plan.md)):
+  * a licensed set of about 60 clips;
+  * pre-registered content classes from SI/TI, flat and dark fractions, and source type;
+  * train/dev/confirm splits;
+  * class-tuned sharpening-only θ as the baseline to beat;
+  * global vs specialist `G` over 3 seeds;
+  * a content gate;
+  * one confirmation run on held-out clips.
+* **P1-later, method improvements** (only if P1 shows `G` is worth improving):
   * a real-forward / surrogate-backward estimator for `G`;
   * an emulator ensemble or a conservative emulator;
   * a BO + `G` hybrid;
@@ -297,10 +310,11 @@ compared and what counts as success. In short:
 ```
 src/vreg/       ff.py content.py platform.py precomp.py metrics.py evaluate.py optimize.py report.py cli.py
 src/vreg/surrogate/  models.py loop.py
-scripts/        setup_env.sh run_experiments.sh
+scripts/        setup_env.sh run_experiments.sh run_p0.sh p0_tables.py
 tests/          tiny-clip unit tests (run in GitHub Actions)
 docs/img/       figures used in this README
 docs/related-work.md  prior work, overlap check, reusable code and licenses
+docs/P0-plan.md, docs/P1-plan.md  execution plans (P0 done, P1 current)
 idea.md         project idea and direction (updated after the prior-work review)
 PROGRESS.md     what is done, what the results show, experiment backlog
 data/, runs/    generated clips and experiment outputs (git-ignored)
