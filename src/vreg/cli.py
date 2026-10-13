@@ -94,8 +94,10 @@ def cmd_features(args) -> int:
 def cmd_classify(args) -> int:
     from . import classify, content, features
 
+    pre = json.loads(args.pre_registered) if args.pre_registered else None
     res = classify.classify(content.read_manifest(Path(args.manifest)), features.read_csv(Path(args.features)),
-                            seed=args.seed)
+                            seed=args.seed, report_only=tuple(c for c in args.report_only.split(",") if c),
+                            pre_registered=pre)
     print(classify.write(res, Path(args.out)))
     r = res["rules"]
     print(f"B if SI >= {r['si_min_for_B']:.1f} or TI >= {r['ti_min_for_B']:.1f}")
@@ -203,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--features", default="docs/p1/features.csv")
     p.add_argument("--out", default="docs/p1/classes.json")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--report-only", default="", help="classes whose clips get no split (listed, never tested)")
+    p.add_argument("--pre-registered", help="JSON of decisions fixed before any training, e.g. '{\"gate\": {\"C\": \"tier\"}}'")
     p.set_defaults(fn=cmd_classify)
 
     p = sub.add_parser("eval", help="evaluate one parameter set")

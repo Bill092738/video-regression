@@ -130,10 +130,15 @@ def e19(d: Data, out: list[str]):
     out += ["## E19: content classes and splits", "",
             f"B if SI ≥ {r['si_min_for_B']:.1f} or TI ≥ {r['ti_min_for_B']:.1f} (66th percentiles over the natural "
             f"clips not in C); C if flat_frac ≥ {r['flat_frac_min_for_C']} or dark_frac ≥ {r['dark_frac_min_for_C']}.",
-            "", "| class | train | dev | confirm | total | sources |", "|---|---|---|---|---|---|"]
+            "", "| class | train | dev | confirm | report only | total | sources |", "|---|---|---|---|---|---|---|"]
     for k, c in d.classes["counts"].items():
         groups = {v["source_group"] for v in d.classes["clips"].values() if v["class"] == k}
-        out.append(f"| {k} | {c['train']} | {c['dev']} | {c['confirm']} | {sum(c.values())} | {len(groups)} |")
+        out.append(f"| {k} | {c['train']} | {c['dev']} | {c['confirm']} | {c.get('report', 0)} | {sum(c.values())} "
+                   f"| {len(groups)} |")
+    if d.classes.get("report_only"):
+        out.append("")
+        out.append(f"Report-only classes (no split, never trained on or tested, listed only): "
+                   f"{', '.join(d.classes['report_only'])}. Pre-registered: {json.dumps(d.classes.get('pre_registered'))}.")
     out.append("")
 
 
@@ -143,6 +148,17 @@ def e20(d: Data, out: list[str]) -> dict:
     out += ["## E20: baselines per class (train + dev clips; gain over tier-only, mean [95 % CI])", ""]
     summary = {}
     for k in classify.CLASSES:
+        if k in d.classes.get("report_only", ()):
+            clips = d.clips(k, (classify.REPORT,))
+            out += [f"**Class {k}** (report only, {len(clips)} clip{'s' * (len(clips) != 1)}; no CI, not tested).", "",
+                    "| clip | configuration | " + " | ".join(METRICS) + " |", "|---" * (len(METRICS) + 2) + "|"]
+            for c in clips:
+                for label, conf in (("naive", "naive"), ("P0 global sharpening-only θ", "theta_global")):
+                    if c in d.base[conf] and c in d.base["tier"]:
+                        out.append(f"| {c} | {label} | " + " | ".join(
+                            fmt(m, improvement(m, d.base[conf][c][m], d.base["tier"][c][m])) for m in METRICS) + " |")
+            out.append("")
+            continue
         clips = d.clips(k, ("train", "dev"))
         theta = load(f"p1_sharp_{k}")
         if theta:
@@ -260,6 +276,9 @@ def e23(d: Data, out: list[str], loss: str) -> None:
     dec = decisions()
     if not dec:
         return
+    for k, choice in d.classes.get("pre_registered", {}).get("gate", {}).items():
+        if dec["gate"].get(k) != choice:
+            raise SystemExit(f"decisions.json gate for class {k} must be the pre-registered {choice!r}")
     g = d.g(dec["g_for_A"], loss, "confirm")
     if not g:
         out += ["## E23: confirmation", "", "(decisions recorded; confirm split not evaluated yet)", ""]

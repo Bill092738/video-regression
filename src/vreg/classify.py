@@ -12,8 +12,12 @@ never land in two splits. A source whose segments fall into several classes keep
 got in the first class (A, B, C, D order), so that no source is in the training split of one
 class and the confirm split of another.
 
+A class can be declared **report-only** (``report_only``): its clips get the split ``report``
+instead of train / dev / confirm, so they are never trained on, never used in a statistical test,
+and only listed in the tables. P1 declares class C report-only, because it has a single clip.
+
 Clip selectors (``--clips`` / ``--holdout``): ``@A:train``, ``@B:dev``, ``@*:dev``,
-``@natural:train``, ``@A`` (every split), mixed freely with plain clip names.
+``@natural:train``, ``@C:report``, ``@A`` (every split), mixed freely with plain clip names.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from . import content
 
 CLASSES = ("A", "B", "C", "D")
 SPLITS = ("train", "dev", "confirm")
+REPORT = "report"
 FRACTIONS = {"train": 0.5, "dev": 0.25, "confirm": 0.25}
 FLAT_MAX = 0.5
 DARK_MAX = 0.5
@@ -60,10 +65,13 @@ def assign_classes(clips: dict[str, content.ManifestClip], feats: dict[str, dict
     return cls, thresholds
 
 
-def assign_splits(clips: dict[str, content.ManifestClip], cls: dict[str, str], seed: int = SEED) -> dict[str, str]:
+def assign_splits(clips: dict[str, content.ManifestClip], cls: dict[str, str], seed: int = SEED,
+                  report_only=()) -> dict[str, str]:
     rng = random.Random(seed)
     group_split: dict[str, str] = {}
     for k in CLASSES:
+        if k in report_only:
+            continue
         members = [n for n in clips if cls[n] == k]
         sizes: dict[str, int] = {}
         for n in members:
@@ -81,15 +89,17 @@ def assign_splits(clips: dict[str, content.ManifestClip], cls: dict[str, str], s
             split = max(SPLITS, key=lambda s: (FRACTIONS[s] * total - count[s], -SPLITS.index(s)))
             group_split[g] = split
             count[split] += sizes[g]
-    return {n: group_split[clips[n].source_group] for n in clips}
+    return {n: REPORT if cls[n] in report_only else group_split[clips[n].source_group] for n in clips}
 
 
-def classify(clips: dict[str, content.ManifestClip], feats: dict[str, dict], seed: int = SEED) -> dict:
+def classify(clips: dict[str, content.ManifestClip], feats: dict[str, dict], seed: int = SEED,
+             report_only=(), pre_registered: dict | None = None) -> dict:
     cls, thresholds = assign_classes(clips, feats)
-    split = assign_splits(clips, cls, seed)
-    counts = {k: {s: sum(1 for n in clips if cls[n] == k and split[n] == s) for s in SPLITS} for k in CLASSES}
-    return {"rules": thresholds, "seed": seed, "fractions": FRACTIONS,
-            "counts": counts,
+    split = assign_splits(clips, cls, seed, report_only)
+    counts = {k: {s: sum(1 for n in clips if cls[n] == k and split[n] == s) for s in (*SPLITS, REPORT)}
+              for k in CLASSES}
+    return {"rules": thresholds, "seed": seed, "fractions": FRACTIONS, "report_only": list(report_only),
+            "pre_registered": pre_registered or {}, "counts": counts,
             "clips": {n: {"class": cls[n], "split": split[n], "source_group": c.source_group,
                           "source_type": c.source_type} for n, c in clips.items()}}
 
@@ -110,7 +120,7 @@ def select(selector: str, classes: dict) -> list[str]:
     """``@A:train``, ``@*:dev``, ``@natural:train``, ``@B`` -> clip names, in manifest order."""
     what, _, split = selector.lstrip("@").partition(":")
     split = split or "*"
-    if what not in (*CLASSES, "*", "natural") or split not in (*SPLITS, "*"):
+    if what not in (*CLASSES, "*", "natural") or split not in (*SPLITS, REPORT, "*"):
         raise ValueError(f"bad clip selector {selector!r}; e.g. @A:train, @*:dev, @natural:train")
     ok_cls = NATURAL_CLASSES if what == "natural" else CLASSES if what == "*" else (what,)
     return [n for n, c in classes["clips"].items()

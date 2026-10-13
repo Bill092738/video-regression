@@ -361,3 +361,64 @@ Bold: the winner by the pairwise rule; no bold means a tie.
 | E1 + E2 | Filter gain over tier-only, ugc_strict, across seeds | **not confirmed** on all 5 GP-BO seeds (0–1/3 judges); SSIMULACRA2 lower on every clip in every seed |
 | E1 | Learned `G` beats tier-only on all natural clips | **downgraded**: 3/4 clips; below tier-only on ducks_take_off in all 3 new seeds |
 | E1 | Learned `G` beats GP-BO θ on smoother content | **downgraded**: only old_town_cross, only on composite; tie on in_to_tree, where θ wins on SSIMULACRA2 |
+
+## 7. P1 results
+
+Plan: [`docs/P1-plan.md`](docs/P1-plan.md). Platform `sim:ugc_strict`, upload ×2. Driver:
+`scripts/run_p1.sh`; tables, CIs and decision rules: `scripts/p1_tables.py` (→ `runs/p1_tables.md`).
+
+### E19: content set, classes and splits (frozen before any training)
+
+The manifest, features and classes (`docs/p1/clips.csv`, `features.csv`, `classes.json`) were
+committed before E20. The set has **77 three-second segments from 47 sources**, with a license
+recorded for every row:
+
+* **53 natural** segments, all from media.xiph.org:
+  * SVT MultiFormat (the four P0 clips plus crowd_run);
+  * SVT 720p and TUM 1080p (no copyright, no restrictions);
+  * NTIA/ITS (research use only);
+  * public-domain video-conference sequences.
+* **14 animation**: Blender open movies (CC BY), plus the HDgreetings sequences (benchmarking and
+  research only). The HDgreetings sequences turned out to be 3-D rendered e-cards, so they were
+  labelled `animation` rather than `natural` before any feature was computed.
+* **4 screen**: this repository's own files rendered as scrolling editor, terminal and document
+  views (`scripts/make_screen_clips.py`). They are rendered, not captured.
+* **6 synthetic**: the three P0 lavfi clips plus a text ticker on colour bars, Game of Life and a
+  dark gradient.
+
+Not used: YouTube-UGC (no official license wording found) and Netflix Open Content (CC BY-NC-ND;
+one set has no license file).
+
+| class | train | dev | confirm | report only | total | sources |
+|---|---|---|---|---|---|---|
+| A: natural, low motion, moderate detail | 13 | 7 | 7 | 0 | 27 | 17 |
+| B: natural, dense texture or high motion | 13 | 6 | 6 | 0 | 25 | 14 |
+| C: natural, flat or dark dominated | 0 | 0 | 0 | 1 | 1 | 1 |
+| D: graphics, text, screen, animation | 12 | 6 | 6 | 0 | 24 | 17 |
+
+Thresholds (from `classify`):
+* **B** if SI ≥ 109.3 or TI ≥ 33.1. These are the 66th percentiles over the 52 natural clips not
+  in C. SI and TI are the ITU-T P.910 maxima over frames (ffmpeg `siti`).
+* **C** if `flat_frac ≥ 0.5` or `dark_frac ≥ 0.5`.
+
+**Class C has a single clip** (blue_sky_5, `dark_frac` 0.52); the target was 8. Natural footage
+from these sources is rarely flat (16×16 block std < 2) or dark (luma < 40) over half the frame.
+The thresholds were not changed. Decided before E20:
+* **C is report-only.** blue_sky_5 gets no split, is never trained on and is excluded from every
+  statistical test. It is listed in the tables only (`vreg classify --report-only C`).
+* **C's gate is pre-registered as tier-only** (no filtering). There is no dev data to choose it
+  from. `p1_tables.py` refuses a decisions file that differs.
+* **H3 is not testable for class C** (n = 1). Class D still tests H3.
+* Own recordings for C may be added later only as a separate exploratory addendum. They must not
+  change the frozen classes, splits or the H1 test.
+
+Other set-up choices:
+* **Splits are grouped by source across classes.** Splits are drawn per class (50/25/25 %), but
+  a source keeps the split it first received (in class order A, B, D). No source is therefore in
+  one class's training split and another's confirm split. Example: blue_sky_0 is in B train,
+  while blue_sky_5 is report-only.
+* **Frame rates.** 50/60 fps sources drop frames to 30 fps, as in P0. 24/25 fps sources are
+  retimed frame for frame (their motion plays 1.2–1.25× faster), because duplicated frames would
+  be unnaturally cheap to encode. Non-16:9 sources are centre-cropped.
+* **The confirm split stays unseen until E23.** The E20 baseline tables use the train and dev
+  clips only.

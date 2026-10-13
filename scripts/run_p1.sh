@@ -23,13 +23,13 @@ e19() {
   step uv run python scripts/make_screen_clips.py
   step uv run vreg clips all --manifest docs/p1/clips.csv
   step uv run vreg features
-  step uv run vreg classify
+  step uv run vreg classify --report-only C --pre-registered '{"gate": {"C": "tier"}}'
 }
 
 # baselines on every clip: naive, tier-only, P0 global sharpening-only theta, class-tuned sharpening-only theta
 e20() {
   step uv run vreg rescore runs/strict_gp_noeq --clips '@*:*' --tag p1
-  for k in A B C D; do
+  for k in A B D; do  # class C is report-only (one clip): it gets no class-tuned theta
     step uv run vreg optimize "${PLAT[@]}" --clips "@$k:train" --sampler gp --trials 15 --fix "$SHARP_ONLY" \
       --name "p1_sharp_$k"
     step uv run vreg rescore "runs/p1_sharp_$k" --clips "@$k:*" --tag p1

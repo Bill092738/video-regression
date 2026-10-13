@@ -172,3 +172,12 @@ def test_g_gain_is_seed_mean_per_clip():
     # lower-is-better metrics are signed so that positive = better
     assert t.gains({"a": {"dists": 0.1}}, {"a": {"dists": 0.3}}, ["a"], "dists") == [pytest.approx(0.2)]
     assert t.seed_gains(g, ref, ["a", "b"], "xpsnr") == [0.0, 3.0]
+
+
+def test_report_only_class_gets_no_split():
+    clips = {f"a{i}": mclip(f"a{i}", group=f"g{i}") for i in range(8)} | {"c": mclip("c", group="g0")}
+    cls = {**{f"a{i}": "A" for i in range(8)}, "c": "C"}
+    split = classify.assign_splits(clips, cls, report_only=("C",))
+    assert split["c"] == "report" and split["a0"] in classify.SPLITS
+    res = {"clips": {n: {"class": cls[n], "split": split[n]} for n in clips}}
+    assert classify.select("@C:report", res) == ["c"] and "c" not in classify.select("@*:train", res)
