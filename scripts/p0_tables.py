@@ -68,8 +68,8 @@ def e2(out: list[str]):
     out.append("")
     for run, t, label in rows[:3]:
         res = load(run)
-        if res and "testsrc" in res["clips"]:
-            s = gain_summary(res)[t]
+        s = gain_summary(res)[t] if res else None
+        if s and "testsrc" in s["composite"]["per_clip"]:
             out.append(f"* testsrc, {label}: " + ", ".join(
                 f"{m} {fmt(s[m]['per_clip']['testsrc'], m)}" for m in METRICS if 'testsrc' in s[m]['per_clip']))
     out.append("")
