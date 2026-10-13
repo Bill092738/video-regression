@@ -422,3 +422,53 @@ Other set-up choices:
   be unnaturally cheap to encode. Non-16:9 sources are centre-cropped.
 * **The confirm split stays unseen until E23.** The E20 baseline tables use the train and dev
   clips only.
+
+### E20: baselines per class
+
+Gains over tier-only on the **train and dev clips** (the confirm split stays unseen until E23),
+mean [95 % bootstrap CI over clips]; bold = the CI excludes 0. The class-tuned sharpening-only θ
+is GP-BO with 15 trials on that class's training clips, over `sharpen` and `sharpen_radius` only.
+The P0 global θ is the best θ of `strict_gp_noeq` (unsharp 0.89, 5×5).
+
+**Class A** (20 clips). Class-tuned sharpening-only θ: unsharp 1.06, radius 2 (size 5).
+
+| configuration | composite | vmaf_neg | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| naive | **-8.05 [-10.11, -6.35]** (n=20) | **-5.87 [-7.29, -4.70]** | **-0.0428 [-0.0630, -0.0270]** | **-16.79 [-21.10, -12.82]** | **-0.0208 [-0.0265, -0.0159]** | **-1.19 [-1.53, -0.89]** |
+| P0 global sharpening-only θ | **+1.76 [+1.40, +2.14]** (n=20) | **+1.19 [+0.96, +1.39]** | **+0.0139 [+0.0086, +0.0199]** | +0.08 [-0.74, +0.72] | **+0.0024 [+0.0011, +0.0040]** | **+0.39 [+0.28, +0.50]** |
+| class-tuned sharpening-only θ | **+2.15 [+1.70, +2.59]** (n=20) | **+1.20 [+0.91, +1.47]** | **+0.0198 [+0.0123, +0.0284]** | +0.06 [-1.03, +0.97] | **+0.0040 [+0.0020, +0.0061]** | **+0.58 [+0.43, +0.76]** |
+
+**Class B** (19 clips). Class-tuned sharpening-only θ: unsharp 0.85, radius 2 (size 5).
+
+| configuration | composite | vmaf_neg | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| naive | **-11.11 [-13.23, -8.93]** (n=19) | **-8.61 [-10.36, -6.84]** | **-0.0522 [-0.0636, -0.0404]** | **-20.84 [-24.57, -16.93]** | **-0.0249 [-0.0309, -0.0189]** | **-1.48 [-1.78, -1.19]** |
+| P0 global sharpening-only θ | **+0.92 [+0.64, +1.17]** (n=19) | **+0.37 [+0.16, +0.59]** | **+0.0135 [+0.0093, +0.0179]** | **-2.19 [-3.27, -1.14]** | -0.0005 [-0.0016, +0.0005] | **+0.32 [+0.25, +0.39]** |
+| class-tuned sharpening-only θ | **+0.95 [+0.69, +1.19]** (n=19) | **+0.42 [+0.21, +0.62]** | **+0.0132 [+0.0090, +0.0176]** | **-2.05 [-3.09, -1.02]** | -0.0002 [-0.0015, +0.0009] | **+0.32 [+0.25, +0.40]** |
+
+**Class C** (report only, 1 clip; no CI, not tested).
+
+| clip | configuration | composite | vmaf_neg | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|---|
+| blue_sky_5 | naive | -10.92 | -7.17 | -0.0748 | -23.72 | -0.0219 | -1.10 |
+| blue_sky_5 | P0 global sharpening-only θ | +0.57 | +0.22 | +0.0063 | -0.69 | -0.0032 | +0.22 |
+
+**Class D** (18 clips). Class-tuned sharpening-only θ: unsharp 1.05, radius 2 (size 5).
+
+| configuration | composite | vmaf_neg | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| naive | **-5.29 [-7.36, -3.20]** (n=18) | **-3.33 [-4.94, -1.67]** | **-0.0185 [-0.0276, -0.0096]** | **-9.49 [-13.37, -5.63]** | **-0.0124 [-0.0172, -0.0077]** | **-0.81 [-1.32, -0.30]** |
+| P0 global sharpening-only θ | **+1.30 [+0.81, +1.72]** (n=18) | **+0.96 [+0.56, +1.29]** | **+0.0073 [+0.0043, +0.0109]** | +1.08 [-0.39, +2.69] | +0.0018 [-0.0001, +0.0034] | **+0.42 [+0.27, +0.58]** |
+| class-tuned sharpening-only θ | **+1.67 [+0.95, +2.33]** (n=18) | **+0.95 [+0.41, +1.41]** | **+0.0104 [+0.0060, +0.0154]** | +0.76 [-1.06, +2.44] | **+0.0030 [+0.0002, +0.0056]** | **+0.50 [+0.33, +0.68]** |
+
+![E20 baselines](docs/img/p1/e20_baselines.png)
+
+* **Class-tuned θ is the baseline `G` must beat.** On A it beats tier-only on five of six
+  metrics, including DISTS and XPSNR; SSIMULACRA2 is flat (+0.06, CI spans 0). It is slightly
+  stronger than the global θ on A (unsharp 1.06 vs 0.89).
+* **On B, sharpening lowers SSIMULACRA2** (−2.1, CI below 0), DISTS is flat, and only XPSNR (and
+  the objective's own components) improve. This fits the mechanism behind H2: on dense texture
+  the ingest denoiser and rate cap leave little that a pre-emphasis can restore.
+* **On D, mild sharpening alone does not hurt** on average: XPSNR and DISTS improve, SSIMULACRA2
+  is flat. The large P0 damage on testsrc came from the full θ (grain and colour boost), not from
+  sharpening. H3 for D will be decided on the confirm split with `G` included.
