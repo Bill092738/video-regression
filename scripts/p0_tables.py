@@ -19,7 +19,7 @@ import numpy as np  # noqa: E402
 
 from vreg import metrics, report  # noqa: E402
 from vreg.optimize import load_trials  # noqa: E402
-from vreg.rescore import METRICS, NATURAL_CLIPS, gain_summary, verdict  # noqa: E402
+from vreg.rescore import METRICS, NATURAL_CLIPS, gain_summary, improvement, verdict  # noqa: E402
 
 RUNS = Path("runs")
 IMG = Path("docs/img/p0")
@@ -65,6 +65,12 @@ def e2(out: list[str]):
         s = gain_summary(res)[t]
         cells = [f"{fmt(s[m]['mean'], m)} ({signs(s[m]['per_clip'])})" if m in s else "–" for m in METRICS]
         out.append(f"| {label} | " + " | ".join(cells) + f" | {verdict(s)} |")
+    base = load("strict_gp")
+    if base:
+        tier = {m: [improvement(m, base["clips"][c]["upscale_only"][m], base["clips"][c]["naive"][m])
+                    for c in NATURAL_CLIPS if c in base["clips"]] for m in METRICS}
+        out.append("| *for reference: tier gain (tier-only − naive), ugc_strict ×2* | " + " | ".join(
+            f"{fmt(np.mean(v), m)} ({' '.join('+' if x > 0 else '−' for x in v)})" for m, v in tier.items()) + " | |")
     out.append("")
     for run, t, label in rows[:3]:
         res = load(run)
