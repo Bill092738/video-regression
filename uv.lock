@@ -1230,6 +1230,18 @@ wheels = [
 ]
 
 [[package]]
+name = "piq"
+version = "0.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "torchvision" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/ae/9274f8e3f216759311a460a896594f04aade8a9f1171c0a732cc613c3b21/piq-0.8.0.tar.gz", hash = "sha256:ea74938ce11845d63fed3185694cdf9641f85bd19718dc3394f8008811b847d4", size = 91316, upload-time = "2023-07-04T21:28:05.877Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/49/e198c355bc01a1bb3aff5d41a8fe7c8a0502ad7a4063865d2c9dd270cb0f/piq-0.8.0-py3-none-any.whl", hash = "sha256:bad83f8e68bad6c09df09c2bdf50d1e8ccf5e852d7b64562317c27ed5eb63159", size = 106872, upload-time = "2023-07-04T21:28:03.532Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1588,6 +1600,22 @@ wheels = [
 ]
 
 [[package]]
+name = "ssimulacra2"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pillow" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0a/dd/eed2a607631d2a40ac5605b7cf7f2fa699a8c4da48fe42c0c97a6757c33c/ssimulacra2-0.3.0.tar.gz", hash = "sha256:0160a32f32ef54797fbab13031f4d3b12d07345bb2eb75c72634e2d2d265b805", size = 10858, upload-time = "2025-05-08T20:42:01.861Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/df/20/e287da7bdde98ee7410ee740b1246104459e9af94b35c1b9e73489146f95/ssimulacra2-0.3.0-py3-none-any.whl", hash = "sha256:02b41880805881ee022d4c10a1d91ab509c4d9c03529c36f878132e721470388", size = 11201, upload-time = "2025-05-08T20:42:00.985Z" },
+]
+
+[[package]]
 name = "sympy"
 version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1724,11 +1752,13 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "optuna" },
+    { name = "ssimulacra2" },
 ]
 
 [package.optional-dependencies]
 torch = [
     { name = "lpips" },
+    { name = "piq" },
     { name = "torch" },
     { name = "torchvision" },
 ]
@@ -1745,6 +1775,8 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "optuna", specifier = ">=4.0" },
+    { name = "piq", marker = "extra == 'torch'", specifier = ">=0.8.0" },
+    { name = "ssimulacra2", specifier = ">=0.3.0" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.4" },
     { name = "torchvision", marker = "extra == 'torch'", specifier = ">=0.19" },
 ]
