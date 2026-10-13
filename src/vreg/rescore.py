@@ -34,7 +34,8 @@ def rescore(run_dir: Path, clips: dict[str, Path], log=lambda s: print(s, flush=
     hist_file = run_dir / "history.json"
     if hist_file.exists():
         hist = json.loads(hist_file.read_text())
-        kind, platform, train = "surrogate", hist["platform"], [
+        # runs from before the platform was recorded used ugc_strict
+        kind, platform, train = "surrogate", hist.get("platform", "sim:ugc_strict"), [
             c for c, r in hist["rounds"][0]["clips"].items() if not r["holdout"]]
         configs = {"naive": {}, "upscale_only": {"upscale": hist["upscale"]}}
     else:
