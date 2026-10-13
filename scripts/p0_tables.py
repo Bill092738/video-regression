@@ -92,10 +92,11 @@ def e3_e5(out: list[str]):
             continue
         res = load(run)
         out += [f"## {title}", "", f"Mean over the natural clips: {desc}. Best θ: `{json.dumps(res['configs']['best'])}`",
-                "", "| metric | full θ gain | this run's gain | fraction kept |", "|---|---|---|---|"]
+                "", "| metric | full θ gain | this run's gain | ratio (this / full; meaningful only when the full gain > 0) |",
+                "|---|---|---|---|"]
         for m in METRICS:
             f, x = full[m]["mean"], g[m]["mean"]
-            frac = f"{x / f:.0%}" if abs(f) > 1e-9 and np.sign(f) == np.sign(x) else ("n/a (full gain ≤ 0)" if f <= 0 else f"{x / f:.0%}")
+            frac = f"{x / f:.0%}" if f > 1e-9 else "n/a (full gain ≤ 0)"
             out.append(f"| {m} | {fmt(f, m)} | {fmt(x, m)} | {frac} |")
         out += ["", f"* verdict for this run: {verdict(g)}", ""]
 
