@@ -146,8 +146,15 @@ and dominated by one discrete choice, so random search is a strong baseline here
   common creator knowledge (e.g. uploading 1440p to YouTube to get VP9/AV1), and in the
   simulator it holds by construction. Treat it as a sanity check that the optimiser finds the
   known trick, not as a finding. The interesting quantity is the gain **on top of** it.
-* The **filtering** part adds a further +2–4 on natural footage, and it **transfers to unseen
-  natural clips** (ducks, in_to_tree).
+* The **filtering** part adds a further +2–4 **on the objective** on natural footage, including
+  unseen clips (ducks, in_to_tree). **Independent metrics do not confirm it**
+  ([P0 results](PROGRESS.md#6-p0-results)). SSIMULACRA2 and XPSNR are *lower* than tier-only on
+  every natural clip, and DISTS is flat. Most of the gain comes from the contrast and saturation
+  boost plus grain, which VMAF NEG and LPIPS reward. With contrast and saturation frozen, the
+  optimiser keeps 72 % of the composite gain with sharpening only (no grain), and that version
+  passes two of three judges (DISTS, XPSNR).
+* At the native tier (×1, no tier change) a filter-only search finds the same +3 composite gain
+  from contrast alone, and **no** independent metric agrees. That is metric hacking.
 * It **hurts synthetic graphics/text badly** (testsrc −11.6), because sharpening, grain and the
   colour boost damage flat colours and hard edges. Pre-compensation has to be **content-adaptive**.
 
@@ -160,6 +167,10 @@ Unlike on `ugc_strict`, it uses **no grain** and **stronger sharpening** (1.29, 
 platform does no ingest denoising, so there is nothing for grain to survive. Its AV1 encode is
 soft, so pre-emphasis pays off. Compensation is therefore platform-specific, which is the point of
 closing the loop against the real target rather than tuning once.
+
+The independent metrics agree with this gain on average, but one clip carries it. On park_joy the
+AV1 tier-only upload is worse than naive on SSIMULACRA2, and θ recovers much of that loss. On the
+other three natural clips, SSIMULACRA2 and XPSNR are slightly lower with θ than with tier-only.
 
 ### 3. Learned pre-compensation through a differentiable emulator (`vreg surrogate`)
 
@@ -197,6 +208,9 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
 * The learned `G` wins on smoother, mid-detail content (old_town_cross, in_to_tree). The 7-knob
   parametric θ wins on very dense texture (park_joy, ducks), where the emulator is weakest
   (~25 dB).
+* Independent metrics partly agree with round 0. XPSNR is higher than tier-only on all four
+  natural clips, and DISTS on three. **SSIMULACRA2 is lower on every clip** (mean −5.2), and
+  VMAF NEG is lower on three of four, so most of `G`'s gain is in the LPIPS term.
 
 ### Caveats
 
@@ -207,19 +221,26 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
 * The objective is itself a model of quality. Grain and saturation gains are partly what LPIPS and
   VMAF-NEG reward. The found recipe (+contrast, +saturation, unsharp) is close to published VMAF
   and VMAF NEG attacks (Zvezdakova 2019; Siniukov 2021: VMAF NEG +23.6 % with no subjective
-  gain). Until independent metrics such as SSIMULACRA2 and DISTS and a viewer study confirm them,
-  the filter gains are provisional.
+  gain). The P0 checks with SSIMULACRA2, DISTS and XPSNR did not confirm the `ugc_strict` filter
+  gain (see above). Optimising any single metric, these included, lowered at least one of the
+  others (the Goodhart matrix in [P0 results](PROGRESS.md#6-p0-results)). Without a viewer study,
+  no filter gain here is established.
 
 ### What the results show so far
 
 1. The closed loop works, and every sampler beats a naive upload. With one seed, the samplers
    cannot be told apart.
-2. About 80 % of the gain is the known tier trick. Filtering adds +2–4 on natural footage, and
-   this transfers to unseen natural clips.
+2. About 80 % of the gain is the known tier trick, and every independent metric confirms it.
+   Filtering adds +2–4 *on the objective* on natural footage, but SSIMULACRA2 and XPSNR disagree,
+   so this filter gain is **not confirmed**. A sharpening-only θ (contrast and saturation frozen)
+   is the part that survives two of three judges. At the native tier, the filter gain is
+   contrast hacking.
 3. The same θ hurts graphics and text, so pre-compensation must be content-adaptive.
-4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`.
+4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`. The `ugc_av1`
+   filter gain passes the independent-metric check on average, but it rests on one clip.
 5. A learned `G` exploits its emulator unless it is constrained. With a trust region it beats
-   tier-only on all natural clips. Domain-adaptation rounds did not help yet.
+   tier-only on the objective on all natural clips, and on XPSNR and DISTS. SSIMULACRA2 is lower
+   on every clip. Domain-adaptation rounds did not help yet.
 
 ### Next steps
 
