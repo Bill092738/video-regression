@@ -41,19 +41,66 @@ def cmd_doctor(_args) -> int:
 
 
 def _clips(spec: str) -> dict[str, Path]:
-    from . import content
+    """Clip names, ``all`` (the P0 clips) or selectors such as ``@A:train`` (see ``vreg.classify``)."""
+    from . import classify, content
 
-    names = content.all_clip_names() if spec == "all" else [c for c in spec.split(",") if c]
+    names = content.all_clip_names() if spec == "all" else classify.resolve(spec)
     return content.ensure_clips(names, content.CLIPS_DIR)
 
 
 def cmd_clips(args) -> int:
+    import os
+
     from . import content, ff
 
-    for name, path in _clips(args.names).items():
-        i = ff.probe(path)
-        desc = (content.SYNTHETIC_CLIPS.get(name) or content.XIPH_CLIPS.get(name))[1]
-        print(f"{name:16s} {i.width}x{i.height}@{i.fps:g} {i.frames:3d}f  {path}  -- {desc}")
+    if args.manifest:
+        os.environ["VREG_MANIFEST"] = args.manifest
+        spec = args.names if args.names != "all" else ",".join(content.read_manifest(Path(args.manifest)))
+    else:
+        spec = args.names
+    failed = []
+    for name in (spec.split(",") if args.manifest else [spec]):
+        try:
+            clips = _clips(name)
+        except (ff.FFmpegError, OSError, ValueError) as e:
+            print(f"!!! {name}: {e}".splitlines()[0])
+            failed.append(name)
+            continue
+        for n, path in clips.items():
+            i = ff.probe(path)
+            print(f"{n:22s} {i.width}x{i.height}@{i.fps:g} {i.frames:3d}f  {path}  -- {content.describe(n)}", flush=True)
+    if failed:
+        print(f"failed: {','.join(failed)}")
+    return 1 if failed else 0
+
+
+def cmd_features(args) -> int:
+    import os
+
+    from . import content, features
+
+    os.environ["VREG_MANIFEST"] = args.manifest
+    names = list(content.read_manifest(Path(args.manifest)))
+    rows = []
+    for name, path in content.ensure_clips(names, content.CLIPS_DIR).items():
+        rows.append(features.clip_features(name, path))
+        r = rows[-1]
+        print(f"{name:22s} SI={r['si']:6.1f} TI={r['ti']:6.1f} flat={r['flat_frac']:.2f} "
+              f"dark={r['dark_frac']:.2f} luma={r['mean_luma']:.0f}", flush=True)
+    print(features.write_csv(rows, Path(args.out)))
+    return 0
+
+
+def cmd_classify(args) -> int:
+    from . import classify, content, features
+
+    res = classify.classify(content.read_manifest(Path(args.manifest)), features.read_csv(Path(args.features)),
+                            seed=args.seed)
+    print(classify.write(res, Path(args.out)))
+    r = res["rules"]
+    print(f"B if SI >= {r['si_min_for_B']:.1f} or TI >= {r['ti_min_for_B']:.1f}")
+    for k, c in res["counts"].items():
+        print(f"class {k}: {sum(c.values()):3d} clips  " + "  ".join(f"{s} {n}" for s, n in c.items()))
     return 0
 
 
@@ -135,7 +182,20 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("clips", help="generate / fetch test clips")
     p.add_argument("names", nargs="?", default="all", help="comma separated names or 'all'")
+    p.add_argument("--manifest", help="fetch the clips of a manifest (docs/p1/clips.csv); 'all' = every row")
     p.set_defaults(fn=cmd_clips)
+
+    p = sub.add_parser("features", help="SI/TI, flat and dark fractions of every manifest clip")
+    p.add_argument("--manifest", default="docs/p1/clips.csv")
+    p.add_argument("--out", default="docs/p1/features.csv")
+    p.set_defaults(fn=cmd_features)
+
+    p = sub.add_parser("classify", help="content classes and train/dev/confirm splits")
+    p.add_argument("--manifest", default="docs/p1/clips.csv")
+    p.add_argument("--features", default="docs/p1/features.csv")
+    p.add_argument("--out", default="docs/p1/classes.json")
+    p.add_argument("--seed", type=int, default=0)
+    p.set_defaults(fn=cmd_classify)
 
     p = sub.add_parser("eval", help="evaluate one parameter set")
     p.add_argument("--clips", default="old_town_cross")
