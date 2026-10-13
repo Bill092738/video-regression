@@ -74,10 +74,16 @@ submission, `grep -c "STATUS: unverified" references.bib` should print 0.
    the next step.
 2. **Endorsement.** First-time submitters in a category often need an endorsement from an
    established author in that category. arXiv tells you during submission whether you need one and
-   gives you a code to send to an endorser. Ask your course supervisor or a lab member who has
-   posted in the category. Do this early: it can take days.
-3. **Category.** Primary `eess.IV` (Image and Video Processing); cross-list `cs.MM` (Multimedia),
-   and `cs.LG` if the learning part is substantial.
+   gives you a code to send to an endorser. The endorser must have posted in the same field as your
+   primary category (eess). Ask your professor if they have; otherwise ask them to introduce someone
+   who has. Do this early: it can take days.
+3. **Category.** You choose a primary category and optional cross-lists. Moderators check that the
+   topic fits and may reclassify. To choose, look at the category printed next to the title on the
+   arXiv pages of the closest papers you cite.
+   * Plan: primary `eess.IV` (Image and Video Processing), cross-list `cs.MM` (Multimedia).
+   * Also cross-list `cs.LG` only if the optimisation and surrogate analysis is a substantial part of
+     the final paper.
+   * Do not add cross-lists that are only loosely related; moderators remove them.
 4. **License.** arXiv asks you to pick one. CC BY 4.0 is the common choice for open research. The
    default arXiv non-exclusive license is the most compatible with later journal submission. Check
    the target venue's policy if you plan to submit there too.
@@ -107,8 +113,10 @@ submission, `grep -c "STATUS: unverified" references.bib` should print 0.
   once announced; old versions stay visible.
 * If you also submit to a conference or journal, check its policy on preprints first. Most
   computer-science venues allow arXiv preprints.
-* For the course: the arXiv version can be the course deliverable, or the course report can be a
-  frozen PDF of an earlier version. Ask the course staff which they prefer.
+* **Timing: post only after the real-platform validation (P2) is done and in the paper.** The real
+  platform results are what the paper's framing depends on, so the first public version should
+  contain them.
+* This paper is independent of any course; it is not a course deliverable.
 
 ## Data licenses in the paper
 
