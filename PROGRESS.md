@@ -472,3 +472,30 @@ The P0 global θ is the best θ of `strict_gp_noeq` (unsharp 0.89, 5×5).
 * **On D, mild sharpening alone does not hurt** on average: XPSNR and DISTS improve, SSIMULACRA2
   is flat. The large P0 damage on testsrc came from the full θ (grain and colour boost), not from
   sharpening. H3 for D will be decided on the confirm split with `G` included.
+
+### E21: `G` loss selection
+
+Global `G` trained on `@natural:train` (26 clips), rounds 1, seed 0, trust weight 2.0, residual
+cap 0.06, 3000 emulator / 1500 generator steps; round-0 pairs (6 variants per clip) collected
+once into `runs/p1_pairs` and reused by every later run. Judged on the 7 class A dev clips, gain
+over the class-tuned sharpening-only θ, mean [95 % CI over clips]. A `G` is never judged by its
+own loss; VMAF NEG judges only the DISTS-trained `G`s (code change 6).
+
+| G loss | ssimulacra2 | dists | xpsnr | vmaf_neg | judges with positive mean |
+|---|---|---|---|---|---|
+| lpips | **-4.23 [-5.10, -3.38]** | +0.0005 [-0.0069, +0.0097] | +0.22 [-0.45, +0.99] | (not a judge) **-1.63 [-2.82, -0.74]** | 2/3 |
+| dists | **-0.91 [-1.39, -0.34]** | (own loss) **+0.0088 [+0.0007, +0.0175]** | -0.06 [-0.63, +0.60] | **-1.38 [-2.54, -0.55]** | 0/3 |
+| lpips+dists | **-3.75 [-4.66, -2.75]** | (own loss) -0.0055 [-0.0113, +0.0009] | +0.12 [-0.51, +0.84] | **-2.21 [-3.43, -1.36]** | 1/3 |
+
+**Chosen loss: `lpips`** (the pre-registered rule: most judges with a positive mean gain, with
+SSIMULACRA2 as the tie-break). Fixed for E22 and E23.
+
+* The rule counts signs of means, and neither positive mean for `lpips` (DISTS, XPSNR) has a CI
+  that excludes 0. **SSIMULACRA2 is clearly lower** than with the class-tuned θ (−4.2, CI
+  [−5.1, −3.4]); H1's criterion 2 (SSIMULACRA2 gain ≥ 0) is therefore unlikely to hold on the
+  confirm split unless the specialist `G` differs.
+* The DISTS-trained `G` changes pixels about a third as much (mean |G(X) − X| ≈ 1.0 vs 2.9
+  levels on A dev) and costs much less SSIMULACRA2 (−0.9), but no judge favours it over the
+  class-tuned θ.
+* The emulator is accurate on these clips: 31–36 dB PSNR against the real playback of `G`'s
+  outputs, compared with ~25 dB on dense texture in P0.

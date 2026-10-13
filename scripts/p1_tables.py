@@ -34,6 +34,11 @@ N_BOOT = 10_000
 JUDGE_SET = ("ssimulacra2", "dists", "xpsnr", "vmaf_neg")
 
 
+def not_judged(metric: str, loss: str) -> str:
+    """Why a metric is not one of a G's judges: it is in G's loss, or simply not in its judge set."""
+    return "(own loss) " if metric in loss.split("+") else "(not a judge) "
+
+
 def tag(loss: str) -> str:
     return loss.replace("+", "_")
 
@@ -194,7 +199,7 @@ def e21(d: Data, out: list[str]) -> str | None:
             gv = gains(g, d.base["theta_class"], clips, m)
             mean, lo, hi = bootstrap(gv)
             own = m not in judges
-            cells.append(("(own loss) " if own else "") + fmt(m, mean, lo, hi))
+            cells.append((not_judged(m, loss) if own else "") + fmt(m, mean, lo, hi))
             pos += (not own) and mean > 0
         s2 = np.mean(gains(g, d.base["theta_class"], clips, "ssimulacra2") or [np.nan])
         score[loss] = (pos, s2)
@@ -238,7 +243,7 @@ def e22(d: Data, out: list[str], loss: str) -> dict:
                     st = bootstrap(gains(a, d.base[ref], clips, m))
                     summary.setdefault((ref, k, key), {})[m] = st
                     own = m not in judges and m != "composite" and key in G_KINDS
-                    cells.append(("(own) " if own else "") + fmt(m, *st))
+                    cells.append((not_judged(m, loss) if own else "") + fmt(m, *st))
                 lines.append(f"| {k} ({len(clips)}) | {label} | {nseeds} | " + " | ".join(cells) + " |")
         lines.append("")
         out += lines
