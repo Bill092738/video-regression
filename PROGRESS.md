@@ -19,6 +19,7 @@ are in [`docs/related-work.md`](docs/related-work.md). The full result tables ar
 | HTML report: convergence, sensitivity, crops, transfer table, surrogate rounds; mean ± sd across seeds | done | `vreg report` |
 | Report-only judges SSIMULACRA2, DISTS, XPSNR (not in `composite`), back-filled from cached playbacks; frozen knobs (`--fix`) | done (P0) | `vreg rescore`, `vreg optimize --fix`, `src/vreg/metrics.py` |
 | P0 experiments E1–E5 | done | [§6](#6-p0-results), `scripts/run_p0.sh`, `scripts/p0_tables.py` |
+| P1 plan: content-scoped learned `G`, gate, pre-registered classes (E19–E23) | **planned** | [`docs/P1-plan.md`](docs/P1-plan.md) |
 | Unit tests on tiny clips, CI without torch | done | `tests/`, `.github/workflows/ci.yml` |
 | Prior-work and license review | done | `docs/related-work.md` |
 
@@ -66,6 +67,9 @@ platforms.
 * **The objective and the independent judges disagree on the filter gain** (P0, §6). No single
   metric optimised so far is free of regressions on the others, and there is no viewer study
   to decide which side is right.
+* **The learned `G`'s advantage is narrow and untested by content type.** It beats GP-BO θ only
+  on old_town_cross, and the four natural clips are too few to tell which content it suits. P1
+  addresses this with pre-registered content classes and a larger clip set.
 * **Domain-adaptation rounds degrade.** `E`'s fidelity on `G`'s outputs stays at about 25 dB on
   dense texture, and `G`'s residual keeps growing.
 * **The simulator lacks some real behaviours:**
@@ -96,11 +100,30 @@ Execution plan (code changes, commands, decision rules): [`docs/P0-plan.md`](doc
 | E4 | ✅ **Goodhart matrix**: optimise for VMAF NEG only, for composite, and for SSIMULACRA2; evaluate each result with all metrics | 3 objectives × all metrics | The objective whose optimum still scores well on the other metrics becomes the default |
 | E5 | ✅ **Filter-only at the native tier**: search θ with the upscale fixed at ×1 | filter gain at ×1 vs filter gain at ×2 | Separates the filter gain from the tier gain more cleanly than the transfer table |
 
-### P1: method improvements
+### P1 (current): content-scoped learned pre-compensation
+
+Execution plan: [`docs/P1-plan.md`](docs/P1-plan.md). P0 confirmed only the tier gain. P1 tests
+whether a learned `G` beats the strongest surviving filter, a class-tuned sharpening-only θ, for
+a content class defined **before** training. It also adds a gate that switches filters off
+elsewhere. Classes, hypotheses, splits and decision rules are pre-registered, and the confirm
+split is evaluated once.
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
-| E6 | **Content-adaptive θ**: gate or scale θ by content features (texture energy, flat-area fraction, text detection), similar to the TDP adaptive intensity factor; or run a per-clip search warm-started from the global θ | global θ vs gated θ vs per-clip θ | testsrc no longer worse than tier-only; natural clips keep at least 80 % of their gain |
+| E19 | **Content set and classes**: about 60 licensed 3 s clips; SI/TI, flat and dark fractions; classes A (natural, low motion, moderate detail), B (dense texture or high motion), C (flat, gradient or dark), D (graphics, text, screen, animation); train/dev/confirm splits grouped by source | none (set-up) | ≥ 12 clips in A and B, ≥ 8 in C and D; `docs/p1/` committed before any training |
+| E20 | **Baselines per class**: naive, tier-only, P0 global sharpening-only θ, class-tuned sharpening-only θ | per class, all metrics | Fixes the baseline `G` must beat |
+| E21 | **`G` loss selection**: LPIPS vs DISTS vs LPIPS+DISTS (a `G` is never judged by its own loss) | on class A dev | One loss fixed for E22–E23 |
+| E22 | **Specialist vs global `G`**, 3 seeds | global `G`, specialist A, specialist B vs class-tuned sharpening-only θ, on dev | Choose the `G` and the gate table before E23 |
+| E23 | **Gate and confirmation** (once, on the confirm split) | gated system vs tier-only vs global sharpening-only θ | H1: ≥ 2 judges with a 95 % CI over clips excluding 0, SSIMULACRA2 not worse, sign holds in ≥ 2/3 seeds. Gate: no class worse than tier-only on SSIMULACRA2 or XPSNR |
+
+E6 (content-adaptive θ) is absorbed into E19–E23: the gate is its content-adaptive part.
+
+### P1-later: method improvements
+
+These items wait until P1 shows whether a learned `G` is worth improving.
+
+| # | Experiment | Compare | Success criterion |
+|---|---|---|---|
 | E7 | **Real-forward / surrogate-backward estimator** for `G`: `y = y_real + E(x) − stopgrad(E(x))`, following SelfC and SCALED | current `G` (emulator forward) vs this estimator | No collapse without a trust region; the gain on dense texture (park_joy, ducks) moves closer to GP-BO θ |
 | E8 | **Emulator robustness**: an ensemble of `E` with a disagreement penalty; a conservative (COMs-style) `E`; `G`-like perturbations in round-0 data; temporal context (stacked frames) | trust region only vs each option | Emulator PSNR on `G`'s outputs above 30 dB, and domain-adaptation rounds improve instead of degrading |
 | E9 | **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
@@ -127,9 +150,8 @@ Execution plan (code changes, commands, decision rules): [`docs/P0-plan.md`](doc
 ## 5. Engineering backlog
 
 * Add a `LICENSE` file (MIT or Apache-2.0 fit the current dependencies).
-* `vreg.metrics`: SSIMULACRA2, DISTS and XPSNR as report-only metrics (E2).
-* `vreg optimize`: `--seeds` and aggregation in `vreg report` (E1).
-* Freezing parameters from the CLI, e.g. `--fix eq=0,upscale=1` (E3, E5).
+* P1 code changes (manifest-driven clips, `vreg features`, `vreg classify`, clip selectors,
+  `--g-loss`, `--pairs-cache`, P1 tables): see [`docs/P1-plan.md`](docs/P1-plan.md).
 * Record upload size and bitrate as a cost in every evaluation.
 * A `CommandPlatform` example script for one platform, with rate limiting and private uploads
   (E15, E16).
