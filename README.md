@@ -24,7 +24,8 @@ Two optimisation routes are implemented, matching section 3 of the idea:
 ## Status and positioning
 
 * **Status:** the full loop works end to end on **simulated** platforms. The real-platform
-  adapter exists but has not been run yet. All results so far use one seed per configuration.
+  adapter exists but has not been run yet. The `ugc_strict` sampler comparison uses five seeds
+  and the learned `G` four; the other configurations use one seed.
   The checklist, what the results do and do not show, and the prioritised experiment backlog are
   in [`PROGRESS.md`](PROGRESS.md).
 * **Not new:** learned pre-processing in front of a standard codec trained through a codec proxy
@@ -195,7 +196,8 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
   far below the upscale-only baseline (`runs/surrogate_naive`). This is the classic failure of
   optimising against a learned simulator.
 * **With a trust region** (L1 penalty on `|G(X)−X|`, residual capped at 0.06), round 0 beats
-  the same-tier naive upload on every natural clip, including the held-out one:
+  the same-tier naive upload on every natural clip in this run (seed 0), including the held-out
+  one. Over three further seeds, it falls below tier-only on ducks_take_off (see below):
 
 | clip | upscale only | learned G (round 0) | gain | GP-BO θ (for comparison) |
 |---|---|---|---|---|
@@ -216,9 +218,12 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
 
   The report therefore selects the round by training-clip gain only, which was round 0. The run
   was stopped after round 2.
-* The learned `G` wins on smoother, mid-detail content (old_town_cross, in_to_tree). The 7-knob
-  parametric θ wins on very dense texture (park_joy, ducks), where the emulator is weakest
-  (~25 dB).
+* In this run the learned `G` won on smoother, mid-detail content (old_town_cross, in_to_tree),
+  and the 7-knob parametric θ won on very dense texture (park_joy, ducks), where the emulator is
+  weakest (~25 dB). **Across seeds** (3 for `G`, 5 for θ; P0 E1), `G` beats θ only on
+  old_town_cross (65.4 ± 0.9 vs 62.6 ± 0.2). They tie on in_to_tree. `G` is below tier-only on
+  ducks_take_off in all three new seeds, and it damages the held-out gradient clip (−10 vs
+  tier-only).
 * Independent metrics partly agree with round 0. XPSNR is higher than tier-only on all four
   natural clips, and DISTS on three. **SSIMULACRA2 is lower on every clip** (mean −5.2), and
   VMAF NEG is lower on three of four, so most of `G`'s gain is in the LPIPS term.
@@ -228,7 +233,8 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
 * The platforms are **simulated**. The ladder rules are plausible but invented, so the specific
   numbers (especially the tier-trick gain) do not carry over to a real platform. The tooling does:
   point `CommandPlatform` at a real upload/download workflow.
-* There is one seed per configuration, on 3-second clips.
+* The clips are 3 seconds long. Apart from the `ugc_strict` samplers (5 seeds) and the learned
+  `G` (4 seeds), each configuration has one seed.
 * The objective is itself a model of quality. Grain and saturation gains are partly what LPIPS and
   VMAF-NEG reward. The found recipe (+contrast, +saturation, unsharp) is close to published VMAF
   and VMAF NEG attacks (Zvezdakova 2019; Siniukov 2021: VMAF NEG +23.6 % with no subjective
@@ -251,20 +257,23 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
 4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`. The `ugc_av1`
    filter gain passes the independent-metric check on average, but it rests on one clip.
 5. A learned `G` exploits its emulator unless it is constrained. With a trust region it beats
-   tier-only on the objective on all natural clips, and on XPSNR and DISTS. SSIMULACRA2 is lower
-   on every clip. Domain-adaptation rounds did not help yet.
+   tier-only on the objective on most natural clips (not ducks_take_off across seeds), and on
+   XPSNR and DISTS. SSIMULACRA2 is lower on every clip. It beats GP-BO θ only on
+   old_town_cross. Domain-adaptation rounds did not help yet.
 
 ### Next steps
 
 The full backlog is in [`PROGRESS.md`](PROGRESS.md#4-experiment-backlog). Each item lists what is
 compared and what counts as success. In short:
 
-* **P0, make the claims solid:**
+* **P0, make the claims solid: done.** It covered:
   * several seeds;
   * independent metrics (SSIMULACRA2, DISTS, XPSNR);
   * an ablation with the contrast and saturation knobs frozen;
   * a Goodhart matrix (optimise one metric, judge with the others);
   * filter-only search at the native tier.
+
+  The results and verdicts are in [`PROGRESS.md`](PROGRESS.md#6-p0-results).
 * **P1, method improvements:**
   * content-adaptive θ;
   * a real-forward / surrogate-backward estimator for `G`;

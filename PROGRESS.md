@@ -16,11 +16,19 @@ are in [`docs/related-work.md`](docs/related-work.md). The full result tables ar
 | Black-box search: GP-BO, TPE, CMA-ES, random (Optuna, resumable, cached evaluations) | done | `vreg optimize` |
 | Transfer to unseen clips, and the naive → tier-only → full decomposition | done | `vreg transfer` |
 | Learned `G` through a differentiable emulator `E`, with a trust region and real-platform validation rounds | done | `vreg surrogate`, `src/vreg/surrogate/` |
-| HTML report: convergence, sensitivity, crops, transfer table, surrogate rounds | done | `vreg report` |
+| HTML report: convergence, sensitivity, crops, transfer table, surrogate rounds; mean ± sd across seeds | done | `vreg report` |
+| Report-only judges SSIMULACRA2, DISTS, XPSNR (not in `composite`), back-filled from cached playbacks; frozen knobs (`--fix`) | done (P0) | `vreg rescore`, `vreg optimize --fix`, `src/vreg/metrics.py` |
+| P0 experiments E1–E5 | done | [§6](#6-p0-results), `scripts/run_p0.sh`, `scripts/p0_tables.py` |
 | Unit tests on tiny clips, CI without torch | done | `tests/`, `.github/workflows/ci.yml` |
 | Prior-work and license review | done | `docs/related-work.md` |
 
 ## 2. What the current results show
+
+> **Revised by the P0 results ([§6](#6-p0-results)).** Points 1, 3 and 6 below are the pre-P0
+> claims. P0 replaced point 1: GP-BO > TPE > random over five seeds. It did not confirm point 3:
+> SSIMULACRA2 and XPSNR are lower than tier-only on every natural clip, on every seed. It
+> downgraded point 6: `G` beats tier-only on 3/4 natural clips and beats θ only on
+> old_town_cross. Point 2, the tier gain, is confirmed by every independent metric.
 
 All numbers are from **simulated** platforms, with **one seed** per configuration and 3-second
 clips. They show that the method and the tooling work. They are not yet evidence about real
@@ -50,14 +58,14 @@ platforms.
 
 * That any of this transfers to a real platform.
 * That the colour, contrast and sharpening gains are perceptual improvements and not metric
-  hacking. The found recipe is close to known VMAF and VMAF NEG attacks, and no metric outside
-  the objective has been checked yet.
-* That differences between samplers, or between `G` and θ, are larger than run-to-run noise.
+  hacking. P0 checked them with three independent metrics, which did not confirm them. A viewer
+  study is still missing.
 
 ## 3. Open problems
 
-* **No independent judge yet.** Every reported number is either the objective itself or a
-  component of it.
+* **The objective and the independent judges disagree on the filter gain** (P0, §6). No single
+  metric optimised so far is free of regressions on the others, and there is no viewer study
+  to decide which side is right.
 * **Domain-adaptation rounds degrade.** `E`'s fidelity on `G`'s outputs stays at about 25 dB on
   dense texture, and `G`'s residual keeps growing.
 * **The simulator lacks some real behaviours:**
@@ -78,14 +86,15 @@ are larger studies.
 ### P0: make the existing claims solid
 
 Execution plan (code changes, commands, decision rules): [`docs/P0-plan.md`](docs/P0-plan.md).
+**All five are done.** The results and verdicts are in [§6](#6-p0-results).
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
-| E1 | **Seeds and variance**: 3–5 seeds per sampler on `ugc_strict`, and 3 seeds for `vreg surrogate` | GP-BO vs TPE vs CMA-ES vs random; learned `G` vs GP-BO θ | Mean ± spread reported. A sampler or method "wins" only if the gap is larger than the spread |
-| E2 | **Independent metrics**: add SSIMULACRA2 (BSD) and DISTS (piq, Apache-2.0), plus ffmpeg XPSNR. Re-score the existing best θ and `G` without re-optimising | naive / tier-only / best θ / `G`, on objective metrics vs unoptimised metrics | The filter gain over tier-only keeps the same sign on SSIMULACRA2 and DISTS |
-| E3 | **Metric-hacking ablation**: re-run GP-BO with the contrast and saturation (`eq`) knobs frozen at 0 | full θ vs θ without `eq` | Tells how much of the +2–4 filter gain is colour or contrast (suspect) and how much is grain or sharpening |
-| E4 | **Goodhart matrix**: optimise for VMAF NEG only, for composite, and for SSIMULACRA2; evaluate each result with all metrics | 3 objectives × all metrics | The objective whose optimum still scores well on the other metrics becomes the default |
-| E5 | **Filter-only at the native tier**: search θ with the upscale fixed at ×1 | filter gain at ×1 vs filter gain at ×2 | Separates the filter gain from the tier gain more cleanly than the transfer table |
+| E1 | ✅ **Seeds and variance**: 3–5 seeds per sampler on `ugc_strict`, and 3 seeds for `vreg surrogate` | GP-BO vs TPE vs CMA-ES vs random; learned `G` vs GP-BO θ | Mean ± spread reported. A sampler or method "wins" only if the gap is larger than the spread |
+| E2 | ✅ **Independent metrics**: add SSIMULACRA2 (BSD) and DISTS (piq, Apache-2.0), plus ffmpeg XPSNR. Re-score the existing best θ and `G` without re-optimising | naive / tier-only / best θ / `G`, on objective metrics vs unoptimised metrics | The filter gain over tier-only keeps the same sign on SSIMULACRA2 and DISTS |
+| E3 | ✅ **Metric-hacking ablation**: re-run GP-BO with the contrast and saturation (`eq`) knobs frozen at 0 | full θ vs θ without `eq` | Tells how much of the +2–4 filter gain is colour or contrast (suspect) and how much is grain or sharpening |
+| E4 | ✅ **Goodhart matrix**: optimise for VMAF NEG only, for composite, and for SSIMULACRA2; evaluate each result with all metrics | 3 objectives × all metrics | The objective whose optimum still scores well on the other metrics becomes the default |
+| E5 | ✅ **Filter-only at the native tier**: search θ with the upscale fixed at ×1 | filter gain at ×1 vs filter gain at ×2 | Separates the filter gain from the tier gain more cleanly than the transfer table |
 
 ### P1: method improvements
 
@@ -271,6 +280,49 @@ rule, because its sd is so large.
   so the earlier "all samplers converge on the same recipe" (grain ≈ 6–7, unsharp 0.4–0.8) was
   one point on a ridge, not a stable optimum.
 
+**E2 across seeds.** The four extra GP-BO seeds were re-scored on every clip (`vreg rescore
+runs/strict_gp_s<n>`):
+
+| GP-BO seed | composite | ssimulacra2 | dists | xpsnr | verdict |
+|---|---|---|---|---|---|
+| 0 (`strict_gp`) | +3.03 | −2.23 (− − − −) | +0.0003 | −0.75 | not confirmed (1/3) |
+| 1 | +3.22 | −3.97 (− − − −) | −0.0017 | −0.55 | not confirmed (0/3) |
+| 2 | +3.19 | −2.88 (− − − −) | −0.0017 | −0.30 | not confirmed (0/3) |
+| 3 | +2.98 | −2.64 (− − − −) | −0.0006 | −0.01 | not confirmed (0/3) |
+| 4 | +3.08 | −2.70 (− − − −) | −0.0015 | −0.35 | not confirmed (0/3) |
+
+The filter gain over tier-only fails the rule on **every seed**. SSIMULACRA2 is lower than
+tier-only on every natural clip in every seed. Seed 0 was the most favourable run for the claim,
+not the least.
+
+**Learned `G` across seeds.** `vreg surrogate --rounds 1` with seeds 0, 1 and 2
+(`surrogate_trust_s<n>`), the same settings as `surrogate_trust`. Every seed passes the E2 rule
+2/3 (DISTS and XPSNR). SSIMULACRA2 is lower than tier-only on every natural clip in every seed
+(mean −5.2 to −6.9).
+
+Real composite and SSIMULACRA2 per clip, mean ± sd over seeds (`G`: 3 seeds, round 0; GP-BO θ:
+5 seeds):
+
+| clip | tier-only | GP-BO θ composite | `G` composite | GP-BO θ ssimulacra2 | `G` ssimulacra2 |
+|---|---|---|---|---|---|
+| park_joy *(train)* | 22.21 | **24.95 ± 0.17** | 22.75 ± 0.21 | **−23.57 ± 0.94** | −27.11 ± 0.46 |
+| old_town_cross *(train)* | 60.40 | 62.62 ± 0.16 | **65.39 ± 0.87** | 51.48 ± 0.78 | 50.87 ± 0.96 |
+| ducks_take_off *(train for `G`)* | 25.97 | **29.09 ± 0.27** | 25.45 ± 0.38 | **−23.29 ± 1.10** | −26.99 ± 0.98 |
+| in_to_tree *(held out)* | 58.28 | 62.59 ± 0.40 | 62.32 ± 0.81 | **42.73 ± 0.66** | 38.31 ± 1.54 |
+| sky_gradient *(held out)* | 93.07 | **92.87 ± 0.29** | 82.99 ± 1.56 | **86.18 ± 0.95** | 66.91 ± 4.47 |
+
+Bold: the winner by the pairwise rule; no bold means a tie.
+
+* **`G` beats GP-BO θ only on old_town_cross, and only on the objective** (+2.8). On SSIMULACRA2
+  the two tie there.
+* On the held-out in_to_tree, `G` and θ tie on composite, and θ wins on SSIMULACRA2. The earlier
+  claim "`G` beats θ on smoother content (old_town_cross, in_to_tree)" holds only for
+  old_town_cross.
+* **`G` does not beat tier-only on every natural clip.** On ducks_take_off it is below tier-only
+  in all three new seeds (25.45 ± 0.38 vs 25.97), although ducks is one of its training clips.
+* `G` damages the held-out synthetic gradient much more than θ does (composite −10.1 vs
+  tier-only, SSIMULACRA2 −24).
+
 ### Verdicts
 
 | # | Claim | Verdict |
@@ -282,3 +334,8 @@ rule, because its sd is so large.
 | E3 | Part of the filter gain is colour/contrast hacking | **confirmed**: freezing `eq` costs 28 % of the composite gain and makes the result pass 2/3 judges |
 | E5 | Filters help on their own, without the tier | **not confirmed**: at ×1 the gain is contrast only, 0/3 judges |
 | E4 | `composite` is a safe default objective | **not confirmed**: no objective is free of judge regressions; default kept, results must be re-scored |
+| E1 | Samplers cannot be told apart | **replaced**: over 5 seeds, GP-BO > TPE > random by the rule; CMA-ES misses the ×2 tier on 2/5 seeds |
+| E1 | All samplers converge on the same recipe | **downgraded**: tier (×2) and contrast (+4–6 %) are stable; grain (0–15) and sharpening vary freely at the same score |
+| E1 + E2 | Filter gain over tier-only, ugc_strict, across seeds | **not confirmed** on all 5 GP-BO seeds (0–1/3 judges); SSIMULACRA2 lower on every clip in every seed |
+| E1 | Learned `G` beats tier-only on all natural clips | **downgraded**: 3/4 clips; below tier-only on ducks_take_off in all 3 new seeds |
+| E1 | Learned `G` beats GP-BO θ on smoother content | **downgraded**: only old_town_cross, only on composite; tie on in_to_tree, where θ wins on SSIMULACRA2 |
