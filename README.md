@@ -118,16 +118,27 @@ Objective: `composite` (higher is better), averaged over the training clips `old
 
 ![convergence](docs/img/convergence.png)
 
-All samplers converge on the same recipe:
-* upload upscaled ×2 (1440p)
-* mild unsharp mask (0.4–0.8, 5×5)
-* temporal luma grain ≈ 6–7
-* +3–6 % contrast
-* +14–21 % saturation, which counteracts the colour loss from the platform's ingest denoiser
+The table is the seed-0 run. Over five seeds (P0 E1, [P0 results](PROGRESS.md#6-p0-results)):
 
-GP-BO, TPE and random share the same 8 seeded start-up trials, so their curves overlap early.
-With one seed per sampler, the gaps between samplers are within noise. The space is only 7-D
-and dominated by one discrete choice, so random search is a strong baseline here.
+| sampler | final best, mean ± sd over 5 seeds |
+|---|---|
+| GP-BO | **43.79 ± 0.02** |
+| TPE | 43.43 ± 0.35 |
+| CMA-ES | 40.71 ± 3.82 |
+| random | 42.82 ± 0.51 |
+
+![convergence across five seeds](docs/img/p0/convergence.png)
+
+* **GP-BO beats TPE and random search**, using the rule that the mean difference must exceed
+  both standard deviations. TPE beats random. GP-BO is also the most consistent sampler.
+* **CMA-ES is unreliable at a 40-trial budget.** On two of five seeds it never left the ×1.5
+  tier. With a population of 8, 40 trials are only five generations.
+* **The objective is reproducible; the recipe is not.** Every GP-BO seed picks ×2 and +4–6 %
+  contrast, and saturation is usually at its upper bound (+25 %). Grain (0–15) and unsharp
+  amount (0.4–1.2) vary freely across seeds at the same score (43.77–43.80). The objective is
+  flat along those knobs, so no particular grain or sharpening setting is "the" optimum. The
+  saturation boost was earlier explained as counteracting the ingest denoiser's colour loss.
+  The independent metrics below suggest it is mostly rewarded by the objective.
 
 **Where does the gain come from?** The naive → tier-only → full decomposition (from `vreg transfer`):
 
@@ -228,8 +239,9 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
 
 ### What the results show so far
 
-1. The closed loop works, and every sampler beats a naive upload. With one seed, the samplers
-   cannot be told apart.
+1. The closed loop works, and every sampler beats a naive upload. Over five seeds, GP-BO is the
+   best and most consistent sampler, and CMA-ES sometimes misses the ×2 tier. The objective is
+   reproducible, but the exact grain and sharpening values are not.
 2. About 80 % of the gain is the known tier trick, and every independent metric confirms it.
    Filtering adds +2–4 *on the objective* on natural footage, but SSIMULACRA2 and XPSNR disagree,
    so this filter gain is **not confirmed**. A sharpening-only θ (contrast and saturation frozen)
