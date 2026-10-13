@@ -1,9 +1,8 @@
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-from vreg import content, ff, metrics, precomp
+from vreg import ff, metrics, precomp
 from vreg.evaluate import evaluate
 from vreg.optimize import load_trials, run_study
 from vreg.platform import PlatformProfile, SimulatedPlatform, Tier
@@ -16,11 +15,6 @@ TINY = PlatformProfile(
         Tier(0, "libx264", crf=32, maxrate_kbps=100, denoise="3:3:6:6", preset="veryfast"),
     ),
 )
-
-
-@pytest.fixture(scope="session")
-def tiny_clip(tmp_path_factory) -> Path:
-    return content.make_tiny(tmp_path_factory.mktemp("clips") / "tiny.mkv")
 
 
 def test_normalize_snaps_and_clips():
