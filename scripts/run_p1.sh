@@ -3,7 +3,7 @@
 # E23 confirmation. Resumable: optimize/surrogate runs continue under the same --name, round-0 pairs are
 # shared through runs/p1_pairs, and rescore reuses the evaluation cache. A failed step is logged and the
 # script moves on.
-# Usage: scripts/run_p1.sh [e19|e20|e21|e22|e23|tables ...]   (default: e20 e21 tables e22 tables)
+# Usage: scripts/run_p1.sh [e19|e20|e21|e22|e23|e14|tables ...]   (default: e20 e21 tables e22 tables)
 # E23 is never part of the default: it needs docs/p1/decisions.json, written and committed after E22.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -78,6 +78,19 @@ e23() {
       step uv run vreg surrogate-eval "runs/p1_${g}_${t}_s$s" --clips '@*:confirm' --tag confirm
       step uv run vreg rescore "runs/p1_${g}_${t}_s$s" --clips '@*:confirm' --tag confirm
     done
+  done
+}
+
+# exploratory addendum (backlog E14 applied to the P1 recipe): does the P1 result carry over to sim:ugc_av1?
+# Reuses the frozen classes and splits; changes no P1 verdict.
+e14() {
+  local av1=sim:ugc_av1
+  step uv run vreg rescore runs/strict_gp_noeq --clips '@*:*' --tag av1 --platform "$av1"
+  for k in A B D; do step uv run vreg rescore "runs/p1_sharp_$k" --clips "@$k:*" --tag av1 --platform "$av1"; done
+  for k in A B D; do
+    step uv run vreg optimize --platform "$av1" --clips "@$k:train" --sampler gp --trials 15 --fix "$SHARP_ONLY" \
+      --name "p1av1_sharp_$k"
+    step uv run vreg rescore "runs/p1av1_sharp_$k" --clips "@$k:*" --tag av1
   done
 }
 

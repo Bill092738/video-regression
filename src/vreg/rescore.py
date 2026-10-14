@@ -38,8 +38,13 @@ def improvement(metric: str, a: float, b: float) -> float:
     return a - b if metrics.HIGHER_IS_BETTER[metric] else b - a
 
 
-def rescore(run_dir: Path, clips: dict[str, Path], tag: str = "", log=lambda s: print(s, flush=True)) -> dict:
-    """Writes ``rescore.json`` / ``rescore.md`` (``rescore_<tag>.*`` with a tag) into the run."""
+def rescore(run_dir: Path, clips: dict[str, Path], tag: str = "", platform_override: str | None = None,
+            log=lambda s: print(s, flush=True)) -> dict:
+    """Writes ``rescore.json`` / ``rescore.md`` (``rescore_<tag>.*`` with a tag) into the run.
+
+    ``platform_override`` evaluates the run's configurations on another platform (cross-platform
+    transfer, backlog E14); a learned G's own playbacks are only used on the run's platform.
+    """
     judges = metrics.JUDGE_METRICS
     hist_file = run_dir / "history.json"
     g_loss = None
@@ -54,9 +59,14 @@ def rescore(run_dir: Path, clips: dict[str, Path], tag: str = "", log=lambda s: 
         cfg = json.loads((run_dir / "config.json").read_text())
         kind, platform, train = "optimize", cfg["platform"], list(cfg["clips"])
         configs = decomposition(best_params(run_dir))
+    trained_on = platform
+    if platform_override and platform_override != platform:
+        if kind == "surrogate":
+            raise ValueError("a learned G can only be re-scored on its own platform (its playbacks are stored)")
+        platform = platform_override
     plat = make_platform(platform)
     work = cache_root(plat)
-    out = {"run": run_dir.name, "kind": kind, "platform": platform, "train_clips": train,
+    out = {"run": run_dir.name, "kind": kind, "platform": platform, "trained_on": trained_on, "train_clips": train,
            "configs": configs, "g_loss": g_loss, "judges": list(judges_for(g_loss)), "clips": {}}
     for clip, src in clips.items():
         row = {label: evaluate(clip, src, params, plat, work, judges=judges).metrics

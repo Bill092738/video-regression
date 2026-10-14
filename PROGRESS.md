@@ -683,3 +683,66 @@ not from a learned `G`.
 * The learned `G` wins only on its own training metric.
 
 Because H1 failed, no new class is searched for on the confirm split.
+
+## 8. Addendum: the P1 recipe on `sim:ugc_av1` (exploratory, E14 applied to P1)
+
+Run overnight after P1 (`scripts/run_p1.sh e14`). The question is whether P1's accepted gate
+transfers to the second simulated platform: sharpening-only θ on class A, tier-only elsewhere.
+`ugc_av1` serves AV1 for ≥ 1440p uploads, has no ingest denoise and caps the rate at 1800 kbps.
+It uses the same frozen classes and splits, and **changes no P1 verdict**.
+* "Tuned on ugc_strict": the P1 class θ re-evaluated on ugc_av1 (`vreg rescore --platform`).
+* "Tuned on ugc_av1": a new 15-trial sharpening-only GP-BO per class on ugc_av1's train clips,
+  using the same objective (`composite`).
+
+Same frozen classes and splits; AV1 tier at ×2 and no ingest denoise. Gain over ugc_av1 tier-only on each class's dev + confirm clips (neither θ was tuned on them), mean [95 % CI over clips]. The confirm split was already used once in E23; nothing here changes a P1 verdict.
+
+* A, class θ tuned on ugc_strict: unsharp 1.06, size 5
+* A, class θ tuned on ugc_av1: unsharp 2.00, size 3
+* B, class θ tuned on ugc_strict: unsharp 0.85, size 5
+* B, class θ tuned on ugc_av1: unsharp 0.68, size 5
+* D, class θ tuned on ugc_strict: unsharp 1.05, size 5
+* D, class θ tuned on ugc_av1: unsharp 0.85, size 5
+
+| class | configuration | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|
+| A (14) | P0 global θ (ugc_strict) | +0.43 [-1.17, +1.57] | -2.13 [-5.85, +0.48] | -0.0019 [-0.0065, +0.0011] | +0.12 [-0.06, +0.25] |
+| A (14) | class θ tuned on ugc_strict | +0.57 [-1.20, +1.76] | -2.43 [-6.32, +0.07] | -0.0008 [-0.0058, +0.0024] | +0.20 [-0.00, +0.35] |
+| A (14) | class θ tuned on ugc_av1 | +0.13 [-1.95, +1.62] | -3.18 [-7.96, +0.15] | -0.0026 [-0.0087, +0.0017] | +0.15 [-0.09, +0.33] |
+| A (14) | ugc_av1-tuned − ugc_strict-tuned θ | **-0.44 [-0.86, -0.10]** | -0.75 [-1.86, +0.10] | **-0.0017 [-0.0030, -0.0007]** | **-0.06 [-0.11, -0.01]** |
+| B (12) | P0 global θ (ugc_strict) | +0.06 [-3.08, +4.02] | -3.89 [-10.00, +2.51] | -0.0010 [-0.0098, +0.0112] | +0.09 [-0.35, +0.61] |
+| B (12) | class θ tuned on ugc_strict | -0.30 [-1.43, +0.83] | **-4.32 [-6.61, -2.08]** | -0.0029 [-0.0065, +0.0003] | +0.04 [-0.12, +0.21] |
+| B (12) | class θ tuned on ugc_av1 | -1.23 [-3.20, +0.54] | **-5.54 [-9.32, -2.31]** | -0.0037 [-0.0086, +0.0006] | -0.09 [-0.35, +0.14] |
+| B (12) | ugc_av1-tuned − ugc_strict-tuned θ | -0.93 [-3.21, +1.03] | -1.22 [-5.29, +1.95] | -0.0008 [-0.0073, +0.0055] | -0.13 [-0.42, +0.10] |
+| D (12) | P0 global θ (ugc_strict) | +0.14 [-1.03, +1.10] | -0.96 [-3.66, +1.47] | -0.0039 [-0.0102, +0.0004] | **+0.28 [+0.05, +0.53]** |
+| D (12) | class θ tuned on ugc_strict | +0.11 [-1.09, +1.19] | -1.87 [-5.05, +1.02] | **-0.0045 [-0.0106, -0.0000]** | **+0.30 [+0.07, +0.54]** |
+| D (12) | class θ tuned on ugc_av1 | +0.19 [-0.79, +1.06] | -0.94 [-3.34, +1.34] | -0.0029 [-0.0067, +0.0000] | **+0.31 [+0.09, +0.55]** |
+| D (12) | ugc_av1-tuned − ugc_strict-tuned θ | +0.08 [-0.25, +0.43] | **+0.93 [+0.04, +1.95]** | +0.0016 [-0.0001, +0.0039] | +0.01 [-0.07, +0.09] |
+
+Gate check on ugc_av1 (confirm clips; the P1 gate table with its θ either transferred or tuned on ugc_av1): is any class below ugc_av1 tier-only on SSIMULACRA2 or XPSNR?
+
+| class | gate | θ source | SSIMULACRA2 gate − tier | XPSNR gate − tier |
+|---|---|---|---|---|
+| A | θ | class θ tuned on ugc_strict | -1.18 [-3.14, +0.12] | **+0.25 [+0.18, +0.32]** |
+| A | θ | class θ tuned on ugc_av1 | -1.95 [-5.80, +0.24] | **+0.20 [+0.06, +0.32]** |
+| B | tier-only | – | +0.00 | +0.00 |
+| D | tier-only | – | +0.00 | +0.00 |
+
+![E14 addendum](docs/img/p1/e14_av1.png)
+
+* **The P1 gate does not transfer.** On ugc_av1's confirm clips, class A sharpening is below
+  tier-only on SSIMULACRA2 on average (−1.2 with the transferred θ, −2.0 with the native one; CIs
+  span 0). This breaks the gate's "not below tier-only" criterion. XPSNR still improves (+0.2).
+* **Why.** Per clip, the transferred A θ is roughly neutral on most class A clips (median
+  SSIMULACRA2 change about +0.2). It fails badly on the two clips where AV1 tier-only is already
+  rate-starved: controlled_burn_10 −25.0 (tier-only SSIMULACRA2 31.5) and tractor_0 −6.7 (34.9).
+  Under the 1800 kbps cap, the extra high-frequency energy costs more bits than it restores. A
+  safe gate on this platform would need a rate-headroom feature, not only content features.
+* **Tuning on the objective does not fix it.** The native ugc_av1 θ for A is stronger (unsharp
+  2.0, 3×3) and is *worse* than the transferred one on every judge (composite −0.44, DISTS
+  −0.0017, XPSNR −0.06, all CIs below 0). `composite` again rewards more sharpening than the
+  judges accept.
+* **B:** sharpening lowers SSIMULACRA2 on both platforms (−4.3 transferred, −5.5 native).
+* **D:** mild sharpening is again harmless to helpful (XPSNR +0.3); the native θ is slightly
+  better than the transferred one on SSIMULACRA2 (+0.9).
+* For P2 this means the sharpening recipe must be validated, and its gate re-checked, on each
+  real platform.

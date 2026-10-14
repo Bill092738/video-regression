@@ -383,6 +383,64 @@ def e23(d: Data, out: list[str], loss: str) -> None:
             *explore]
 
 
+def e14(d: Data, out: list[str]) -> None:
+    """Exploratory addendum: the P1 recipe on sim:ugc_av1 (transferred from ugc_strict vs tuned natively)."""
+    glob = load("strict_gp_noeq", "av1")
+    if not glob:
+        return
+    tier = {c: r["upscale_only"] for c, r in glob["clips"].items()}
+    confs = {"P0 global θ (ugc_strict)": {c: r["best"] for c, r in glob["clips"].items()},
+             "class θ tuned on ugc_strict": {}, "class θ tuned on ugc_av1": {}}
+    params = {}
+    for k in classify.CLASSES:
+        for label, run in (("class θ tuned on ugc_strict", f"p1_sharp_{k}"), ("class θ tuned on ugc_av1", f"p1av1_sharp_{k}")):
+            res = load(run, "av1")
+            if res:
+                params[(label, k)] = res["configs"]["best"]
+                confs[label].update({c: r["best"] for c, r in res["clips"].items() if d.cls.get(c) == k})
+    cols = ("composite", "ssimulacra2", "dists", "xpsnr")
+    out += ["## E14 addendum (exploratory): the P1 recipe on sim:ugc_av1", "",
+            "Same frozen classes and splits; AV1 tier at ×2 and no ingest denoise. Gain over ugc_av1 tier-only on "
+            "each class's dev + confirm clips (neither θ was tuned on them), mean [95 % CI over clips]. The "
+            "confirm split was already used once in E23; nothing here changes a P1 verdict.", ""]
+    for (label, k), p in sorted(params.items(), key=lambda x: x[0][1]):
+        out.append(f"* {k}, {label}: unsharp {p['sharpen']:.2f}, size {2 * int(p['sharpen_radius']) + 1}")
+    out += ["", "| class | configuration | " + " | ".join(cols) + " |", "|---" * (len(cols) + 2) + "|"]
+    summary = {}
+    for k in classify.CLASSES:
+        clips = d.clips(k, ("dev", "confirm"))
+        for label, a in confs.items():
+            if not any(c in a for c in clips):
+                continue
+            sts = {m: bootstrap(gains(a, tier, clips, m)) for m in cols}
+            summary.setdefault(k, {})[label] = sts
+            out.append(f"| {k} ({len(clips)}) | {label} | " + " | ".join(fmt(m, *sts[m]) for m in cols) + " |")
+        a, b = confs["class θ tuned on ugc_av1"], confs["class θ tuned on ugc_strict"]
+        if any(c in a for c in clips) and any(c in b for c in clips):
+            out.append(f"| {k} ({len(clips)}) | ugc_av1-tuned − ugc_strict-tuned θ | " + " | ".join(
+                fmt(m, *bootstrap(gains(a, b, clips, m))) for m in cols) + " |")
+    out.append("")
+    dec = decisions()
+    if dec:
+        out += ["Gate check on ugc_av1 (confirm clips; the P1 gate table with its θ either transferred or tuned "
+                "on ugc_av1): is any class below ugc_av1 tier-only on SSIMULACRA2 or XPSNR?", "",
+                "| class | gate | θ source | SSIMULACRA2 gate − tier | XPSNR gate − tier |", "|---|---|---|---|---|"]
+        for k in classify.CLASSES:
+            cl = d.clips(k, ("confirm",))
+            if not cl or dec["gate"].get(k) != "theta":
+                if cl:
+                    out.append(f"| {k} | tier-only | – | +0.00 | +0.00 |")
+                continue
+            for label in ("class θ tuned on ugc_strict", "class θ tuned on ugc_av1"):
+                if any(c in confs[label] for c in cl):
+                    out.append(f"| {k} | θ | {label} | " + " | ".join(
+                        fmt(m, *bootstrap(gains(confs[label], tier, cl, m))) for m in ("ssimulacra2", "xpsnr")) + " |")
+        out.append("")
+    bar_figure(summary, [(lb, lb) for lb in confs], ("ssimulacra2", "dists", "xpsnr"),
+               "E14 addendum: sharpening-only θ on ugc_av1 vs its tier-only (dev + confirm, 95 % CI)",
+               IMG / "e14_av1.png")
+
+
 # ---------------------------------------------------------------------------------------------- figures
 
 def bar_figure(summary: dict, rows: list[tuple[str, str]], metrics: tuple[str, ...], title: str, path: Path):
@@ -441,6 +499,7 @@ def main() -> int:
             bar_figure(by_class, [(G_KINDS[g], g) for g in G_KINDS], judges_for(loss),
                        f"E22: G ({loss}) vs class-tuned sharpening-only θ (dev clips, 95 % CI)", IMG / "e22_dev.png")
         e23(d, out, loss)
+    e14(d, out)
     (RUNS / "p1_tables.md").write_text("\n".join(out) + "\n")
     print("\n".join(out))
     return 0

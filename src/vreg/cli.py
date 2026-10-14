@@ -146,7 +146,7 @@ def cmd_rescore(args) -> int:
 
     clips = _clips(args.clips)
     for run in args.runs:
-        rescore(Path(run), clips, tag=args.tag)
+        rescore(Path(run), clips, tag=args.tag, platform_override=args.platform)
         print((Path(run) / (f"rescore_{args.tag}.md" if args.tag else "rescore.md")).read_text())
     return 0
 
@@ -232,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("runs", nargs="+")
     p.add_argument("--clips", default="all")
     p.add_argument("--tag", default="", help="write rescore_<tag>.json / .md instead of rescore.json / .md")
+    p.add_argument("--platform", help="evaluate the run's configurations on this platform instead (transfer, E14)")
     p.set_defaults(fn=cmd_rescore)
 
     p = sub.add_parser("report", help="HTML report for one or more runs")
