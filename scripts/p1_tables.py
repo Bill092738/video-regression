@@ -93,10 +93,10 @@ class Data:
                         self.base["tier"].setdefault(clip, row["upscale_only"])
                         self.base["naive"].setdefault(clip, row["naive"])
 
-    def g(self, kind: str, loss: str, which: str = "p1") -> dict[str, list[dict]]:
+    def g(self, kind: str, loss: str, which: str = "p1", seeds=SEEDS) -> dict[str, list[dict]]:
         """clip -> [metrics of each seed]"""
         out: dict[str, list[dict]] = {}
-        for s in SEEDS:
+        for s in seeds:
             res = load(f"p1_{kind}_{tag(loss)}_s{s}", which)
             for clip, row in (res or {}).get("clips", {}).items():
                 if "G_r0" in row:
@@ -190,7 +190,7 @@ def e21(d: Data, out: list[str]) -> str | None:
     clips = d.clips("A", ("dev",))
     rows, score = [], {}
     for loss in LOSSES:
-        g = d.g("g", loss)
+        g = d.g("g", loss, seeds=(0,))  # E21 is defined on seed 0; later seeds belong to E22
         if not any(c in g for c in clips):
             continue
         judges = judges_for(loss)
@@ -213,7 +213,11 @@ def e21(d: Data, out: list[str]) -> str | None:
     if len(score) == len(LOSSES):
         chosen = max(LOSSES, key=lambda L: (score[L][0], score[L][1]))
         out += [f"Chosen loss (most judges positive, SSIMULACRA2 tie-break): **{chosen}**.", ""]
-        (RUNS / "p1_g_loss.txt").write_text(chosen + "\n")
+        f = RUNS / "p1_g_loss.txt"
+        if f.exists() and f.read_text().strip() != chosen:
+            # the choice is fixed once made: E22 and E23 were run with the recorded loss
+            raise SystemExit(f"E21 recomputes {chosen!r} but {f} records {f.read_text().strip()!r}")
+        f.write_text(chosen + "\n")
     else:
         out += [f"(only {len(score)} of {len(LOSSES)} losses done; no choice yet)", ""]
     return chosen

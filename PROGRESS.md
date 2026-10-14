@@ -499,3 +499,96 @@ SSIMULACRA2 as the tie-break). Fixed for E22 and E23.
   class-tuned θ.
 * The emulator is accurate on these clips: 31–36 dB PSNR against the real playback of `G`'s
   outputs, compared with ~25 dB on dense texture in P0.
+
+### E22: specialist vs global `G` (dev split)
+
+Three seeds each, loss `lpips`, rounds 1, round-0 pairs reused from `runs/p1_pairs`. The global
+`G` is trained on `@natural:train` (26 clips; its seed 0 is the E21 run), specialist A on
+`@A:train` (13), specialist B on `@B:train` (13). Every `G` is evaluated on all 19 dev clips. A
+clip's value is the mean over the three seeds; CIs are 95 % bootstrap over clips.
+
+#### Gain over tier-only (dev clips, mean over seeds per clip, [95 % CI over clips])
+
+| class | configuration | seeds | composite | ssimulacra2 | dists | xpsnr | vmaf_neg |
+|---|---|---|---|---|---|---|---|
+| A (7) | class-tuned θ | – | **+1.97 [+1.50, +2.38]** | +0.04 [-0.66, +0.71] | +0.0012 [-0.0003, +0.0025] | **+0.41 [+0.31, +0.50]** | **+1.23 [+0.96, +1.45]** |
+| A (7) | P0 global θ | – | **+1.69 [+1.26, +2.17]** | +0.11 [-0.43, +0.58] | +0.0004 [-0.0010, +0.0018] | **+0.31 [+0.22, +0.39]** | **+1.33 [+1.09, +1.56]** |
+| A (7) | global G (@natural:train) | 3 | **+2.43 [+0.29, +4.32]** | **-4.25 [-4.86, -3.71]** | -0.0060 [-0.0122, +0.0008] | +0.50 [-0.16, +1.25] | (not a judge) -0.38 [-1.64, +0.57] |
+| A (7) | specialist A (@A:train) | 3 | +0.46 [-1.90, +2.48] | **-7.74 [-8.37, -7.04]** | **-0.0440 [-0.0520, -0.0364]** | +0.04 [-0.67, +0.81] | (not a judge) -1.05 [-2.47, +0.09] |
+| A (7) | specialist B (@B:train) | 3 | +1.59 [-0.13, +3.03] | **-2.92 [-3.66, -2.26]** | **-0.0075 [-0.0145, -0.0002]** | -0.41 [-0.93, +0.16] | (not a judge) -0.62 [-1.81, +0.27] |
+| B (6) | class-tuned θ | – | **+0.82 [+0.30, +1.28]** | **-2.85 [-3.95, -1.49]** | +0.0006 [-0.0008, +0.0019] | **+0.28 [+0.20, +0.37]** | **+0.25 [+0.02, +0.49]** |
+| B (6) | P0 global θ | – | **+0.82 [+0.33, +1.28]** | **-2.92 [-3.88, -1.63]** | -0.0002 [-0.0014, +0.0010] | **+0.29 [+0.19, +0.37]** | **+0.25 [+0.03, +0.47]** |
+| B (6) | global G (@natural:train) | 3 | -0.15 [-1.45, +1.11] | **-5.72 [-7.22, -4.56]** | +0.0004 [-0.0096, +0.0106] | **+0.39 [+0.25, +0.52]** | (not a judge) **-1.59 [-2.24, -0.97]** |
+| B (6) | specialist A (@A:train) | 3 | -1.30 [-3.20, +0.45] | **-7.49 [-8.91, -6.22]** | -0.0123 [-0.0266, +0.0022] | **+0.42 [+0.33, +0.50]** | (not a judge) **-2.17 [-2.81, -1.49]** |
+| B (6) | specialist B (@B:train) | 3 | -0.23 [-1.20, +0.83] | **-4.68 [-6.04, -3.53]** | -0.0021 [-0.0100, +0.0056] | **+0.14 [+0.03, +0.24]** | (not a judge) **-1.29 [-1.85, -0.74]** |
+| D (6) | class-tuned θ | – | **+1.28 [+0.08, +2.23]** | -0.46 [-4.14, +2.14] | -0.0001 [-0.0051, +0.0038] | **+0.50 [+0.13, +0.88]** | **+1.05 [+0.01, +1.87]** |
+| D (6) | P0 global θ | – | **+1.10 [+0.28, +1.81]** | +0.23 [-2.24, +2.10] | -0.0004 [-0.0043, +0.0023] | **+0.49 [+0.15, +0.84]** | **+1.06 [+0.31, +1.74]** |
+| D (6) | global G (@natural:train) | 3 | -2.07 [-5.76, +1.68] | **-5.66 [-9.63, -1.91]** | **-0.0845 [-0.1422, -0.0309]** | **-3.80 [-8.10, -0.18]** | (not a judge) -1.05 [-3.03, +0.43] |
+| D (6) | specialist A (@A:train) | 3 | **-7.10 [-12.05, -2.31]** | **-11.16 [-17.19, -5.83]** | **-0.1351 [-0.2126, -0.0643]** | **-4.57 [-8.81, -0.42]** | (not a judge) **-1.82 [-3.98, -0.26]** |
+| D (6) | specialist B (@B:train) | 3 | -1.72 [-4.96, +1.69] | **-5.50 [-8.11, -2.96]** | **-0.0766 [-0.1341, -0.0280]** | **-4.05 [-7.91, -0.75]** | (not a judge) **-1.56 [-3.52, -0.02]** |
+
+#### Gain over class-tuned sharpening-only θ (dev clips, mean over seeds per clip, [95 % CI over clips])
+
+| class | configuration | seeds | composite | ssimulacra2 | dists | xpsnr | vmaf_neg |
+|---|---|---|---|---|---|---|---|
+| A (7) | global G (@natural:train) | 3 | +0.46 [-1.45, +2.14] | **-4.28 [-5.21, -3.24]** | **-0.0072 [-0.0138, -0.0005]** | +0.10 [-0.56, +0.84] | (not a judge) **-1.61 [-2.85, -0.72]** |
+| A (7) | specialist A (@A:train) | 3 | -1.51 [-3.59, +0.26] | **-7.77 [-8.88, -6.50]** | **-0.0452 [-0.0541, -0.0367]** | -0.37 [-1.09, +0.42] | (not a judge) **-2.29 [-3.65, -1.26]** |
+| A (7) | specialist B (@B:train) | 3 | -0.38 [-1.95, +1.00] | **-2.96 [-3.93, -2.05]** | **-0.0087 [-0.0157, -0.0016]** | **-0.81 [-1.34, -0.25]** | (not a judge) **-1.86 [-3.01, -1.11]** |
+| B (6) | global G (@natural:train) | 3 | **-0.97 [-1.85, -0.10]** | **-2.87 [-4.64, -1.24]** | -0.0002 [-0.0092, +0.0090] | **+0.11 [+0.05, +0.16]** | (not a judge) **-1.85 [-2.31, -1.38]** |
+| B (6) | specialist A (@A:train) | 3 | **-2.12 [-3.78, -0.72]** | **-4.65 [-6.17, -3.27]** | -0.0129 [-0.0265, +0.0009] | **+0.14 [+0.10, +0.19]** | (not a judge) **-2.42 [-2.88, -1.91]** |
+| B (6) | specialist B (@B:train) | 3 | **-1.06 [-1.74, -0.37]** | -1.83 [-3.57, +0.01] | -0.0027 [-0.0096, +0.0039] | **-0.14 [-0.18, -0.11]** | (not a judge) **-1.55 [-1.92, -1.14]** |
+| D (6) | global G (@natural:train) | 3 | **-3.35 [-6.30, -0.31]** | **-5.20 [-7.45, -3.12]** | **-0.0844 [-0.1378, -0.0339]** | **-4.30 [-8.74, -0.54]** | (not a judge) **-2.10 [-4.68, -0.00]** |
+| D (6) | specialist A (@A:train) | 3 | **-8.38 [-12.72, -4.32]** | **-10.70 [-16.08, -6.63]** | **-0.1350 [-0.2093, -0.0666]** | **-5.07 [-9.55, -0.82]** | (not a judge) **-2.87 [-5.57, -0.57]** |
+| D (6) | specialist B (@B:train) | 3 | **-3.00 [-5.94, -0.13]** | **-5.04 [-7.27, -2.83]** | **-0.0766 [-0.1284, -0.0310]** | **-4.55 [-8.63, -1.12]** | (not a judge) **-2.61 [-5.10, -0.39]** |
+
+#### Sign of the mean gain over class-tuned θ, per seed (judges of the chosen loss)
+
+| class | configuration | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|
+| A | global G (@natural:train) | − − − | + − − | + + − |
+| A | specialist A (@A:train) | − − − | − − − | − − − |
+| A | specialist B (@B:train) | − − − | + − + | − − − |
+| B | global G (@natural:train) | − − − | + + − | + + + |
+| B | specialist A (@A:train) | − − − | − − − | + + + |
+| B | specialist B (@B:train) | − − − | + − + | − − − |
+| D | global G (@natural:train) | − − − | − − − | − − − |
+| D | specialist A (@A:train) | − − − | − − − | − − − |
+| D | specialist B (@B:train) | − − − | − − − | − − − |
+
+![E22 dev](docs/img/p1/e22_dev.png)
+
+* **No `G` beats the class-tuned sharpening-only θ in any class on dev.** Every `G` lowers
+  SSIMULACRA2 relative to it, in every class and every seed.
+* **Class A:** the global `G` is the best `G` (composite +0.5, XPSNR +0.1, both CIs spanning 0),
+  but SSIMULACRA2 (−4.3) and DISTS (−0.007) are lower than with the class-tuned θ. The
+  specialist A `G` is worse than the global one on every judge (SSIMULACRA2 −7.8): 13 training
+  clips are not enough for it.
+* **Class B (H2):** as predicted, no `G` beats the class-tuned θ; only XPSNR moves slightly in
+  `G`'s favour for the global and specialist-A `G`s.
+* **Class D:** every `G` damages graphics, text and animation on all judges (DISTS −0.08 to
+  −0.14, XPSNR −4 to −5 vs tier-only).
+* Bookkeeping: `p1_tables.py` first recomputed E21 from all seeds once E22 had added seeds 1 and
+  2, which flipped its "choice" to `lpips+dists`. E21 is defined on seed 0 and its choice
+  (`lpips`) was fixed before E22, which ran with it. The script now uses seed 0 for E21 and
+  refuses to overwrite a recorded choice.
+
+### Decisions before E23 (written from dev results only, `docs/p1/decisions.json`)
+
+* **`G` for class A: the global `G`** (better than specialist A on every judge on A dev).
+* **No additional confirmatory class** is nominated: no `G` beats the class-tuned θ on any judge
+  with a CI above 0 in any class. The H1 tests therefore use α = 0.05 (95 % CIs).
+* **Gate rule:** per class, among `G`, the class-tuned sharpening-only θ and tier-only, keep the
+  configurations whose dev mean SSIMULACRA2 and XPSNR gains over tier-only are ≥ 0 (the gate
+  acceptance criterion, applied on dev). Pick the one with the most judges positive over
+  tier-only; tier-only on a tie or if nothing else qualifies.
+* **Gate table:**
+
+  | class | configuration | why (dev) |
+  |---|---|---|
+  | A | class-tuned sharpening-only θ | SSIMULACRA2 +0.04, DISTS +0.0012, XPSNR +0.41 over tier-only; `G` fails (SSIMULACRA2 −4.3) |
+  | B | tier-only | class θ fails (SSIMULACRA2 −2.9); every `G` fails |
+  | C | tier-only | pre-registered before E20 |
+  | D | tier-only | class θ fails (SSIMULACRA2 −0.5); every `G` fails |
+
+* E23 evaluates the global `G` (3 seeds) on the 19 confirm clips, once, with no retraining and no
+  threshold changes.
