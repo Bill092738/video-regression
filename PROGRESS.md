@@ -133,7 +133,7 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
-| E7 | **Real-forward / surrogate-backward estimator** for `G`: `y = y_real + E(x) − stopgrad(E(x))`, following SelfC and SCALED | current `G` (emulator forward) vs this estimator | No collapse without a trust region; the gain on dense texture (park_joy, ducks) moves closer to GP-BO θ |
+| E7 | ✅ **Real-forward / surrogate-backward estimator** for `G`: `y = y_real + E(x) − stopgrad(E(x))`, following SelfC and SCALED | current `G` (emulator forward) vs this estimator | No collapse without a trust region; the gain on dense texture (park_joy, ducks) moves closer to GP-BO θ |
 | E8 | **Emulator robustness**: an ensemble of `E` with a disagreement penalty; a conservative (COMs-style) `E`; `G`-like perturbations in round-0 data; temporal context (stacked frames) | trust region only vs each option | Emulator PSNR on `G`'s outputs above 30 dB, and domain-adaptation rounds improve instead of degrading |
 | E9 | **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
 | E10 | **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
@@ -145,7 +145,7 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 |---|---|---|---|
 | E12 | Add a **passthrough branch below a bitrate cap** (Bilibili-style "no second encode"); make upload bitrate part of θ | old vs new profile; does the optimiser find the passthrough region? | The optimiser discovers the bitrate threshold when it exists |
 | E13 | Add **AV1 film-grain synthesis** (denoise + grain table) to `ugc_av1`, and **several renditions** (480p/720p/1080p, weighted) | single 720p rendition vs multi-rendition objective | θ that is robust across renditions |
-| E14 | **Cross-platform transfer**: apply the `ugc_strict` θ to `ugc_av1` and the reverse | transferred vs native θ | Quantifies how much tuning per platform matters |
+| E14 | ◐ (ugc_strict → ugc_av1 for the sharpening-only θ done, §8; the reverse direction is not) **Cross-platform transfer**: apply the `ugc_strict` θ to `ugc_av1` and the reverse | transferred vs native θ | Quantifies how much tuning per platform matters |
 
 ### P2: real platform and human study
 
@@ -768,3 +768,80 @@ global `G` was also trained on B's train clips. Re-scored with `vreg rescore …
   directly on the black box. Its predicted gain does not survive the real channel, although the
   emulator's pixel PSNR on `G`'s outputs is 31–36 dB. The next experiment for `G` is the
   real-forward / surrogate-backward estimator (E7), not a larger clip set.
+
+## 9. E7 results: a real-anchored estimator for `G`
+
+Plan, pre-registered before any run: [`docs/E7-plan.md`](docs/E7-plan.md).
+* Training runs in phases. Each phase starts with one black-box call per training clip
+  (`sim:ugc_strict`; no online platform). The loss then uses `E(G(X)) + stopgrad(y_real − E(G_k(X)))`.
+* `E` is the frozen P1 emulator of the same seed. Clips, loss, trust region, steps and seeds
+  are those of the P1 global `G`, so only the estimator differs.
+* E7a uses 6 anchors (every 250 steps), E7b 1 anchor (at identity), each over 3 seeds
+  (`scripts/run_e7.sh`, `scripts/e7_tables.py`).
+
+**`G` − class-tuned sharpening-only θ, class A dev (7 clips), mean [95 % CI over clips]:**
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G (emulator forward) | 3 | +0.46 [-1.45, +2.14] | +0.0146 [-0.0156, +0.0474] | **-4.28 [-5.21, -3.24]** | **-0.0072 [-0.0138, -0.0005]** | +0.10 [-0.56, +0.84] |
+| E7a: 6 real anchors | 3 | -0.38 [-2.15, +1.46] | +0.0076 [-0.0036, +0.0183] | **-0.84 [-1.39, -0.25]** | **+0.0048 [+0.0003, +0.0093]** | **-0.50 [-0.86, -0.14]** |
+| E7b: 1 real anchor | 3 | -0.90 [-2.46, +0.64] | -0.0043 [-0.0170, +0.0070] | **-2.13 [-2.91, -1.32]** | **-0.0095 [-0.0159, -0.0031]** | **-1.02 [-1.51, -0.48]** |
+
+**The same on `G`'s own training clips (class A train, 13 clips):**
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G (emulator forward) | 3 | **-2.16 [-4.07, -0.51]** | -0.0054 [-0.0308, +0.0184] | **-6.21 [-8.08, -4.56]** | **-0.0089 [-0.0150, -0.0028]** | +0.16 [-0.11, +0.43] |
+| E7a: 6 real anchors | 3 | **-2.27 [-3.43, -1.09]** | -0.0097 [-0.0193, +0.0008] | **-1.96 [-3.13, -0.52]** | -0.0003 [-0.0032, +0.0027] | **-0.63 [-0.88, -0.38]** |
+| E7b: 1 real anchor | 3 | **-2.93 [-4.10, -1.78]** | **-0.0188 [-0.0269, -0.0101]** | **-4.03 [-5.39, -2.46]** | **-0.0068 [-0.0105, -0.0028]** | **-0.90 [-1.24, -0.62]** |
+
+**Paired, E7 − P1 global `G` (class A dev):**
+
+| configuration | composite | lpips | ssimulacra2 | dists | xpsnr | judges with CI above 0 |
+|---|---|---|---|---|---|---|
+| E7a: 6 real anchors | -0.84 [-2.05, +0.31] | -0.0070 [-0.0390, +0.0219] | **+3.44 [+2.64, +4.18]** | **+0.0120 [+0.0078, +0.0159]** | **-0.60 [-1.08, -0.17]** | 2/3 |
+| E7b: 1 real anchor | **-1.35 [-2.44, -0.37]** | -0.0189 [-0.0463, +0.0057] | **+2.15 [+1.51, +2.81]** | -0.0023 [-0.0046, +0.0006] | **-1.12 [-1.41, -0.79]** | 1/3 |
+
+**Gain over tier-only on dev, per class** (for the gate):
+
+| configuration | class | SSIMULACRA2 | DISTS | XPSNR |
+|---|---|---|---|---|
+| class-tuned θ | A | +0.04 [−0.66, +0.71] | +0.0012 [−0.0003, +0.0025] | **+0.41 [+0.31, +0.50]** |
+| E7a | A | **−0.81 [−1.22, −0.52]** | **+0.0060 [+0.0016, +0.0104]** | −0.09 [−0.44, +0.26] |
+| P1 global `G` | A | **−4.25 [−4.86, −3.71]** | −0.0060 [−0.0122, +0.0008] | +0.50 [−0.16, +1.25] |
+| class-tuned θ | B | **−2.85 [−3.95, −1.49]** | +0.0006 [−0.0008, +0.0019] | **+0.28 [+0.20, +0.37]** |
+| E7a | B | **−0.90 [−1.29, −0.44]** | **+0.0035 [+0.0001, +0.0068]** | **−0.02 [−0.03, −0.00]** |
+| E7a | D | **−3.23 [−6.39, −0.77]** | **−0.0661 [−0.1272, −0.0147]** | **−3.78 [−7.96, −0.34]** |
+
+![E7 dev](docs/img/e7/e7_dev.png)
+
+**Budget in black-box calls:**
+
+| configuration | training (anchors) | validation per run |
+|---|---|---|
+| E7a: 6 real anchors | 156 | 45 |
+| E7b: 1 real anchor | 26 | 45 |
+| P1 global G | 0 (forward from the emulator only) | 45 |
+| emulator E (shared by every row) | 156 (26 clips × 6 variants) | – |
+| class-tuned θ for A | 195 (15 trials × 13 clips) | – |
+
+**Decision (pre-registered rule): "helps".** E7a beats the P1 `G` on 2 of 3 judges, with CIs
+above 0: SSIMULACRA2 +3.4 and DISTS +0.012. It does not meet the H1 criteria against the
+class-tuned θ: SSIMULACRA2 −0.84, DISTS +0.0048 (CI above 0, 3/3 seeds), XPSNR −0.50. So the
+confirm split was not evaluated. By the plan, E9 is worth one overnight run with the E7
+estimator.
+
+* **The diagnosis is confirmed.** Most of the P1 `G`'s loss was the emulator gap: anchoring the
+  forward value on the black box removes about 80 % of its SSIMULACRA2 deficit on A (−4.3 → −0.8
+  vs θ). E7a's train-clip deficit also shrinks (−6.2 → −2.0).
+* **What is left is a trade-off, not a failure.** E7a is the first `G` that beats tier-only on
+  DISTS on both A and B, and it is better than θ on DISTS. It gives up the XPSNR that sharpening
+  buys, and stays slightly below tier-only on SSIMULACRA2 (−0.8).
+* **More anchors help.** With one anchor (E7b, 26 calls) the gain over the P1 `G` is about
+  half (SSIMULACRA2 +2.2, DISTS no change).
+* **Graphics and animation (D) are still damaged** by every `G`. The gate keeps them tier-only.
+* **Cost.** E7a needs 156 anchor calls on top of the emulator's 156 pairs: 312 black-box calls,
+  against 195 for the class-tuned θ. On an online platform each call is an upload. The learned
+  route is therefore not a candidate for P2's 15–20-upload budget, whatever E9 shows. Its value
+  is in explaining *why* learned pre-processing loses (the emulator gap), not as a practical
+  recipe.
