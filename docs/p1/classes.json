@@ -1,0 +1,514 @@
+{
+  "rules": {
+    "flat_frac_min_for_C": 0.5,
+    "dark_frac_min_for_C": 0.5,
+    "percentile_for_B": 66,
+    "si_min_for_B": 109.33438000000001,
+    "ti_min_for_B": 33.061820000000004,
+    "si_ti": "ITU-T P.910 maximum over frames (ffmpeg siti)"
+  },
+  "seed": 0,
+  "fractions": {
+    "train": 0.5,
+    "dev": 0.25,
+    "confirm": 0.25
+  },
+  "report_only": [
+    "C"
+  ],
+  "pre_registered": {
+    "gate": {
+      "C": "tier"
+    }
+  },
+  "counts": {
+    "A": {
+      "train": 13,
+      "dev": 7,
+      "confirm": 7,
+      "report": 0
+    },
+    "B": {
+      "train": 13,
+      "dev": 6,
+      "confirm": 6,
+      "report": 0
+    },
+    "C": {
+      "train": 0,
+      "dev": 0,
+      "confirm": 0,
+      "report": 1
+    },
+    "D": {
+      "train": 12,
+      "dev": 6,
+      "confirm": 6,
+      "report": 0
+    }
+  },
+  "clips": {
+    "park_joy": {
+      "class": "B",
+      "split": "train",
+      "source_group": "park_joy",
+      "source_type": "natural"
+    },
+    "park_joy_6": {
+      "class": "B",
+      "split": "train",
+      "source_group": "park_joy",
+      "source_type": "natural"
+    },
+    "old_town_cross": {
+      "class": "A",
+      "split": "dev",
+      "source_group": "old_town_cross",
+      "source_type": "natural"
+    },
+    "old_town_cross_6": {
+      "class": "A",
+      "split": "dev",
+      "source_group": "old_town_cross",
+      "source_type": "natural"
+    },
+    "ducks_take_off": {
+      "class": "B",
+      "split": "train",
+      "source_group": "ducks_take_off",
+      "source_type": "natural"
+    },
+    "ducks_take_off_6": {
+      "class": "B",
+      "split": "train",
+      "source_group": "ducks_take_off",
+      "source_type": "natural"
+    },
+    "in_to_tree": {
+      "class": "A",
+      "split": "train",
+      "source_group": "in_to_tree",
+      "source_type": "natural"
+    },
+    "in_to_tree_6": {
+      "class": "A",
+      "split": "train",
+      "source_group": "in_to_tree",
+      "source_type": "natural"
+    },
+    "crowd_run_0": {
+      "class": "B",
+      "split": "dev",
+      "source_group": "crowd_run",
+      "source_type": "natural"
+    },
+    "crowd_run_6": {
+      "class": "B",
+      "split": "dev",
+      "source_group": "crowd_run",
+      "source_type": "natural"
+    },
+    "mobcal_0": {
+      "class": "B",
+      "split": "train",
+      "source_group": "mobcal",
+      "source_type": "natural"
+    },
+    "mobcal_6": {
+      "class": "A",
+      "split": "train",
+      "source_group": "mobcal",
+      "source_type": "natural"
+    },
+    "parkrun_0": {
+      "class": "B",
+      "split": "confirm",
+      "source_group": "parkrun",
+      "source_type": "natural"
+    },
+    "parkrun_6": {
+      "class": "B",
+      "split": "confirm",
+      "source_group": "parkrun",
+      "source_type": "natural"
+    },
+    "shields_0": {
+      "class": "B",
+      "split": "dev",
+      "source_group": "shields",
+      "source_type": "natural"
+    },
+    "shields_6": {
+      "class": "B",
+      "split": "dev",
+      "source_group": "shields",
+      "source_type": "natural"
+    },
+    "stockholm_0": {
+      "class": "A",
+      "split": "train",
+      "source_group": "stockholm",
+      "source_type": "natural"
+    },
+    "stockholm_6": {
+      "class": "A",
+      "split": "train",
+      "source_group": "stockholm",
+      "source_type": "natural"
+    },
+    "blue_sky_0": {
+      "class": "B",
+      "split": "train",
+      "source_group": "blue_sky",
+      "source_type": "natural"
+    },
+    "blue_sky_5": {
+      "class": "C",
+      "split": "report",
+      "source_group": "blue_sky",
+      "source_type": "natural"
+    },
+    "sunflower_0": {
+      "class": "A",
+      "split": "train",
+      "source_group": "sunflower",
+      "source_type": "natural"
+    },
+    "sunflower_10": {
+      "class": "A",
+      "split": "train",
+      "source_group": "sunflower",
+      "source_type": "natural"
+    },
+    "rush_hour_0": {
+      "class": "A",
+      "split": "train",
+      "source_group": "rush_hour",
+      "source_type": "natural"
+    },
+    "rush_hour_10": {
+      "class": "A",
+      "split": "train",
+      "source_group": "rush_hour",
+      "source_type": "natural"
+    },
+    "pedestrian_area_0": {
+      "class": "A",
+      "split": "confirm",
+      "source_group": "pedestrian_area",
+      "source_type": "natural"
+    },
+    "pedestrian_area_8": {
+      "class": "A",
+      "split": "confirm",
+      "source_group": "pedestrian_area",
+      "source_type": "natural"
+    },
+    "tractor_0": {
+      "class": "A",
+      "split": "confirm",
+      "source_group": "tractor",
+      "source_type": "natural"
+    },
+    "tractor_12": {
+      "class": "A",
+      "split": "confirm",
+      "source_group": "tractor",
+      "source_type": "natural"
+    },
+    "riverbed_0": {
+      "class": "B",
+      "split": "train",
+      "source_group": "riverbed",
+      "source_type": "natural"
+    },
+    "station2_0": {
+      "class": "A",
+      "split": "train",
+      "source_group": "station2",
+      "source_type": "natural"
+    },
+    "station2_8": {
+      "class": "A",
+      "split": "train",
+      "source_group": "station2",
+      "source_type": "natural"
+    },
+    "aspen_2": {
+      "class": "B",
+      "split": "train",
+      "source_group": "aspen",
+      "source_type": "natural"
+    },
+    "aspen_10": {
+      "class": "B",
+      "split": "train",
+      "source_group": "aspen",
+      "source_type": "natural"
+    },
+    "controlled_burn_2": {
+      "class": "A",
+      "split": "dev",
+      "source_group": "controlled_burn",
+      "source_type": "natural"
+    },
+    "controlled_burn_10": {
+      "class": "A",
+      "split": "dev",
+      "source_group": "controlled_burn",
+      "source_type": "natural"
+    },
+    "red_kayak_2": {
+      "class": "B",
+      "split": "dev",
+      "source_group": "red_kayak",
+      "source_type": "natural"
+    },
+    "red_kayak_10": {
+      "class": "B",
+      "split": "dev",
+      "source_group": "red_kayak",
+      "source_type": "natural"
+    },
+    "rush_field_cuts_2": {
+      "class": "B",
+      "split": "confirm",
+      "source_group": "rush_field_cuts",
+      "source_type": "natural"
+    },
+    "rush_field_cuts_10": {
+      "class": "B",
+      "split": "confirm",
+      "source_group": "rush_field_cuts",
+      "source_type": "natural"
+    },
+    "snow_mnt_2": {
+      "class": "B",
+      "split": "train",
+      "source_group": "snow_mnt",
+      "source_type": "natural"
+    },
+    "snow_mnt_10": {
+      "class": "B",
+      "split": "train",
+      "source_group": "snow_mnt",
+      "source_type": "natural"
+    },
+    "speed_bag_2": {
+      "class": "B",
+      "split": "train",
+      "source_group": "speed_bag",
+      "source_type": "natural"
+    },
+    "speed_bag_10": {
+      "class": "B",
+      "split": "train",
+      "source_group": "speed_bag",
+      "source_type": "natural"
+    },
+    "touchdown_pass_2": {
+      "class": "A",
+      "split": "train",
+      "source_group": "touchdown_pass",
+      "source_type": "natural"
+    },
+    "touchdown_pass_10": {
+      "class": "A",
+      "split": "train",
+      "source_group": "touchdown_pass",
+      "source_type": "natural"
+    },
+    "west_wind_easy_2": {
+      "class": "B",
+      "split": "confirm",
+      "source_group": "west_wind_easy",
+      "source_type": "natural"
+    },
+    "west_wind_easy_10": {
+      "class": "B",
+      "split": "confirm",
+      "source_group": "west_wind_easy",
+      "source_type": "natural"
+    },
+    "dinner_2": {
+      "class": "D",
+      "split": "dev",
+      "source_group": "dinner",
+      "source_type": "animation"
+    },
+    "dinner_15": {
+      "class": "D",
+      "split": "dev",
+      "source_group": "dinner",
+      "source_type": "animation"
+    },
+    "factory_2": {
+      "class": "D",
+      "split": "confirm",
+      "source_group": "factory",
+      "source_type": "animation"
+    },
+    "factory_20": {
+      "class": "D",
+      "split": "confirm",
+      "source_group": "factory",
+      "source_type": "animation"
+    },
+    "life_2": {
+      "class": "D",
+      "split": "train",
+      "source_group": "life",
+      "source_type": "animation"
+    },
+    "life_15": {
+      "class": "D",
+      "split": "train",
+      "source_group": "life",
+      "source_type": "animation"
+    },
+    "four_people_2": {
+      "class": "A",
+      "split": "confirm",
+      "source_group": "four_people",
+      "source_type": "natural"
+    },
+    "johnny_2": {
+      "class": "A",
+      "split": "confirm",
+      "source_group": "johnny",
+      "source_type": "natural"
+    },
+    "kristen_and_sara_2": {
+      "class": "A",
+      "split": "confirm",
+      "source_group": "kristen_and_sara",
+      "source_type": "natural"
+    },
+    "vidyo1_2": {
+      "class": "A",
+      "split": "dev",
+      "source_group": "vidyo1",
+      "source_type": "natural"
+    },
+    "vidyo3_2": {
+      "class": "A",
+      "split": "dev",
+      "source_group": "vidyo3",
+      "source_type": "natural"
+    },
+    "vidyo4_2": {
+      "class": "A",
+      "split": "dev",
+      "source_group": "vidyo4",
+      "source_type": "natural"
+    },
+    "bbb_60": {
+      "class": "D",
+      "split": "train",
+      "source_group": "big_buck_bunny",
+      "source_type": "animation"
+    },
+    "bbb_400": {
+      "class": "D",
+      "split": "train",
+      "source_group": "big_buck_bunny",
+      "source_type": "animation"
+    },
+    "elephants_dream_100": {
+      "class": "D",
+      "split": "train",
+      "source_group": "elephants_dream",
+      "source_type": "animation"
+    },
+    "elephants_dream_300": {
+      "class": "D",
+      "split": "train",
+      "source_group": "elephants_dream",
+      "source_type": "animation"
+    },
+    "sintel_120": {
+      "class": "D",
+      "split": "train",
+      "source_group": "sintel",
+      "source_type": "animation"
+    },
+    "sintel_330": {
+      "class": "D",
+      "split": "train",
+      "source_group": "sintel",
+      "source_type": "animation"
+    },
+    "cosmos_laundromat_150": {
+      "class": "D",
+      "split": "train",
+      "source_group": "cosmos_laundromat",
+      "source_type": "animation"
+    },
+    "cosmos_laundromat_400": {
+      "class": "D",
+      "split": "train",
+      "source_group": "cosmos_laundromat",
+      "source_type": "animation"
+    },
+    "screen_code": {
+      "class": "D",
+      "split": "dev",
+      "source_group": "screen_code",
+      "source_type": "screen"
+    },
+    "screen_terminal": {
+      "class": "D",
+      "split": "train",
+      "source_group": "screen_terminal",
+      "source_type": "screen"
+    },
+    "screen_doc": {
+      "class": "D",
+      "split": "train",
+      "source_group": "screen_doc",
+      "source_type": "screen"
+    },
+    "screen_plan": {
+      "class": "D",
+      "split": "confirm",
+      "source_group": "screen_plan",
+      "source_type": "screen"
+    },
+    "sky_gradient": {
+      "class": "D",
+      "split": "dev",
+      "source_group": "sky_gradient",
+      "source_type": "synthetic"
+    },
+    "mandelbrot": {
+      "class": "D",
+      "split": "confirm",
+      "source_group": "mandelbrot",
+      "source_type": "synthetic"
+    },
+    "testsrc": {
+      "class": "D",
+      "split": "dev",
+      "source_group": "testsrc",
+      "source_type": "synthetic"
+    },
+    "ticker_bars": {
+      "class": "D",
+      "split": "dev",
+      "source_group": "ticker_bars",
+      "source_type": "synthetic"
+    },
+    "game_of_life": {
+      "class": "D",
+      "split": "confirm",
+      "source_group": "game_of_life",
+      "source_type": "synthetic"
+    },
+    "dark_gradient": {
+      "class": "D",
+      "split": "confirm",
+      "source_group": "dark_gradient",
+      "source_type": "synthetic"
+    }
+  }
+}

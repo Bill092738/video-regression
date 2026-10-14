@@ -25,7 +25,8 @@ Two optimisation routes are implemented, matching section 3 of the idea:
 
 * **Status:** the full loop works end to end on **simulated** platforms. The real-platform
   adapter exists but has not been run yet. The `ugc_strict` sampler comparison uses five seeds
-  and the learned `G` four; the other configurations use one seed.
+  and the learned `G` four; the other configurations use one seed. The P1 content-scoped test
+  (77 licensed clips, pre-registered classes, 3 seeds per `G`, one confirmation run) is done.
   The checklist, what the results do and do not show, and the prioritised experiment backlog are
   in [`PROGRESS.md`](PROGRESS.md).
 * **Not new:** learned pre-processing in front of a standard codec trained through a codec proxy
@@ -36,11 +37,12 @@ Two optimisation routes are implemented, matching section 3 of the idea:
   adaptive** platform pipeline: ladder choice, ingest filtering, rate control and the served
   rendition. It runs in a closed loop with a small real-upload budget, and reports how much
   playback quality is recovered **beyond** the tier trick.
-* **Current direction (after P0):** the filter gain beyond the tier trick was not confirmed for
-  content in general. Only plain sharpening survives the independent judges. P1 therefore tests
-  a **content-scoped** claim: for which **pre-registered content classes** does a learned `G`
-  beat both the tier trick and class-tuned sharpening, with a content gate that switches
-  filtering off elsewhere ([`docs/P1-plan.md`](docs/P1-plan.md)).
+* **Current direction (after P1):** P0 confirmed only the tier gain. P1 then tested a
+  **content-scoped** claim, with pre-registered classes, splits and decision rules
+  ([`docs/P1-plan.md`](docs/P1-plan.md)): for natural low-motion content, does a learned `G` beat
+  class-tuned sharpening? **It does not.** On this black box, the gain beyond the tier trick that
+  survives the independent judges comes from simple sharpening on natural low-motion content,
+  switched off elsewhere by a content gate ([P1 results](PROGRESS.md#7-p1-results)).
 
   The survey, the overlap check and the license notes for reusable code are in
   [`docs/related-work.md`](docs/related-work.md). The updated direction is in
@@ -233,13 +235,38 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
   natural clips, and DISTS on three. **SSIMULACRA2 is lower on every clip** (mean −5.2), and
   VMAF NEG is lower on three of four, so most of `G`'s gain is in the LPIPS term.
 
+**P1: content classes on 77 clips** ([P1 results](PROGRESS.md#7-p1-results)). The clips are
+licensed segments from 47 sources, in classes pre-registered from SI/TI, flat and dark fractions
+and source type. Each class has train, dev and confirm splits, and the confirm split was
+evaluated once:
+
+| confirm split, gain over tier-only | SSIMULACRA2 | DISTS | XPSNR |
+|---|---|---|---|
+| A (natural, low motion; 7 clips): class-tuned sharpening-only θ | +0.11 (n.s.) | **+0.0023** | **+0.32** |
+| A: learned `G` (global, 3 seeds) | **−3.41** | **−0.0090** | **+0.33** |
+| B (dense texture or high motion; 6 clips): class-tuned sharpening-only θ | **−3.86** | −0.0020 (n.s.) | **+0.28** |
+| D (graphics, text, screen, animation; 6 clips): learned `G` | **−5.55** | **−0.0601** | −1.83 (n.s.) |
+
+Bold: the 95 % bootstrap CI over clips excludes 0; n.s.: it does not.
+
+* **The learned `G` does not beat class-tuned sharpening on natural low-motion content** (H1 not
+  confirmed: SSIMULACRA2 −3.5 and DISTS −0.011 vs the θ, in all 3 seeds). It still raises the
+  objective there (composite +6.0 over tier-only, against +2.1 for the θ), because it optimises
+  LPIPS.
+* A specialist `G` trained on that class alone was worse than the global one.
+* On dense texture nothing beats tier-only on SSIMULACRA2, and on graphics and animation the
+  learned `G` does clear damage.
+* A content gate is accepted: sharpening-only θ on class A, tier-only elsewhere. No class is
+  below tier-only on SSIMULACRA2 or XPSNR.
+
 ### Caveats
 
 * The platforms are **simulated**. The ladder rules are plausible but invented, so the specific
   numbers (especially the tier-trick gain) do not carry over to a real platform. The tooling does:
   point `CommandPlatform` at a real upload/download workflow.
 * The clips are 3 seconds long. Apart from the `ugc_strict` samplers (5 seeds) and the learned
-  `G` (4 seeds), each configuration has one seed.
+  `G` (4 seeds in P0, 3 per configuration in P1), each configuration has one seed. The P1 confirm
+  split has 6–7 clips per class, so its CIs are wide.
 * The objective is itself a model of quality. Grain and saturation gains are partly what LPIPS and
   VMAF-NEG reward. The found recipe (+contrast, +saturation, unsharp) is close to published VMAF
   and VMAF NEG attacks (Zvezdakova 2019; Siniukov 2021: VMAF NEG +23.6 % with no subjective
@@ -258,13 +285,17 @@ ducks_take_off; in_to_tree and sky_gradient are held out. The upload is fixed at
    so this filter gain is **not confirmed**. A sharpening-only θ (contrast and saturation frozen)
    is the part that survives two of three judges. At the native tier, the filter gain is
    contrast hacking.
-3. The same θ hurts graphics and text, so pre-compensation must be content-adaptive.
+3. The full θ hurts graphics and text, so pre-compensation must be content-adaptive. P1 refines
+   this: on graphics and animation the grain and colour boost do the damage, and mild sharpening
+   alone does not. The content gate that P1 accepts sharpens only natural low-motion content and
+   uses tier-only elsewhere.
 4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`. The `ugc_av1`
    filter gain passes the independent-metric check on average, but it rests on one clip.
 5. A learned `G` exploits its emulator unless it is constrained. With a trust region it beats
-   tier-only on the objective on most natural clips (not ducks_take_off across seeds), and on
-   XPSNR and DISTS. SSIMULACRA2 is lower on every clip. It beats GP-BO θ only on
-   old_town_cross. Domain-adaptation rounds did not help yet.
+   tier-only on the objective, but not on SSIMULACRA2. In P1's pre-registered test on 77 clips
+   it does **not** beat class-tuned sharpening on any content class: it lowers SSIMULACRA2 and
+   DISTS and damages graphics and animation. Its gains are in LPIPS, its own training loss.
+   Domain-adaptation rounds did not help either.
 
 ### Next steps
 
@@ -279,16 +310,13 @@ compared and what counts as success. In short:
   * filter-only search at the native tier.
 
   The results and verdicts are in [`PROGRESS.md`](PROGRESS.md#6-p0-results).
-* **P1 (current), content-scoped learned pre-compensation**
-  ([`docs/P1-plan.md`](docs/P1-plan.md)):
-  * a licensed set of about 60 clips;
-  * pre-registered content classes from SI/TI, flat and dark fractions, and source type;
-  * train/dev/confirm splits;
-  * class-tuned sharpening-only θ as the baseline to beat;
-  * global vs specialist `G` over 3 seeds;
-  * a content gate;
-  * one confirmation run on held-out clips.
-* **P1-later, method improvements** (only if P1 shows `G` is worth improving):
+* **P1, content-scoped learned pre-compensation: done** ([`docs/P1-plan.md`](docs/P1-plan.md),
+  results in [`PROGRESS.md`](PROGRESS.md#7-p1-results)). It used 77 licensed clips, pre-registered
+  classes and splits, and one confirmation run. The learned `G` did not beat class-tuned
+  sharpening (H1 not confirmed); the content gate was accepted. Class C (natural, flat or dark)
+  had a single clip and stays untested.
+* **P1-later, method improvements.** These are now the only route by which a learned `G` could
+  beat the P1 gate:
   * a real-forward / surrogate-backward estimator for `G`;
   * an emulator ensemble or a conservative emulator;
   * a BO + `G` hybrid;
@@ -308,13 +336,16 @@ compared and what counts as success. In short:
 ## Repository layout
 
 ```
-src/vreg/       ff.py content.py platform.py precomp.py metrics.py evaluate.py optimize.py report.py cli.py
+src/vreg/       ff.py content.py features.py classify.py platform.py precomp.py metrics.py evaluate.py
+                optimize.py rescore.py report.py cli.py
 src/vreg/surrogate/  models.py loop.py
-scripts/        setup_env.sh run_experiments.sh run_p0.sh p0_tables.py
+scripts/        setup_env.sh run_experiments.sh run_p0.sh p0_tables.py run_p1.sh p1_tables.py
+                make_screen_clips.py
 tests/          tiny-clip unit tests (run in GitHub Actions)
 docs/img/       figures used in this README
 docs/related-work.md  prior work, overlap check, reusable code and licenses
-docs/P0-plan.md, docs/P1-plan.md  execution plans (P0 done, P1 current)
+docs/P0-plan.md, docs/P1-plan.md  execution plans (both done)
+docs/p1/        P1 clip manifest (licenses), features, frozen classes and splits, pre-E23 decisions
 idea.md         project idea and direction (updated after the prior-work review)
 PROGRESS.md     what is done, what the results show, experiment backlog
 data/, runs/    generated clips and experiment outputs (git-ignored)
