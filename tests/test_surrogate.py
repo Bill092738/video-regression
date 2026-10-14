@@ -107,3 +107,24 @@ def test_anchored_forward_equals_real_output_at_the_anchor():
     assert len(seen) == 3 and len(losses) == 6
     assert log[0]["step"] == 0 and log[1]["step"] == 2
     assert 6.0 < log[0]["mean_abs_offset"] < 8.0  # the offset measures the emulator's error
+
+
+def test_theta_front_end_channel(tiny_clip, tmp_path):
+    """E9: a theta in front of the black box; its pairs are cached apart from the upscale-only ones."""
+    from test_pipeline import TINY
+
+    from vreg import ff, precomp
+    from vreg.platform import SimulatedPlatform
+    from vreg.surrogate.loop import channel, pairs_dir, send_through_platform
+
+    theta = {"upscale": 2.0, "sharpen": 1.0, "sharpen_radius": 2.0}
+    assert channel(2.0) == precomp.normalize({"upscale": 2.0})
+    assert channel(theta)["sharpen"] == 1.0
+    plat = SimulatedPlatform(TINY)
+    assert pairs_dir(tmp_path, plat, 2.0) != pairs_dir(tmp_path, plat, channel(theta))
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    a = send_through_platform(tiny_clip, 2.0, plat, tmp_path / "a")
+    b = send_through_platform(tiny_clip, channel(theta), plat, tmp_path / "b")
+    fa, fb = ff.read_frames(a), ff.read_frames(b)
+    assert fa.shape == fb.shape and not np.array_equal(fa, fb)

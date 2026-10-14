@@ -170,12 +170,18 @@ def cmd_surrogate(args) -> int:
     plat = make_platform(args.platform)
     clips = _clips(args.clips)
     if args.estimator == "anchored":
-        if not args.emulator_from:
-            raise SystemExit("--estimator anchored needs --emulator-from RUN/round0.pt")
-        run_anchored(RUNS / (args.name or "surrogate_anchored"), clips, plat, Path(args.emulator_from),
+        front = None
+        if args.front_from:
+            from .optimize import best_params
+
+            front = best_params(Path(args.front_from))
+        run_anchored(RUNS / (args.name or "surrogate_anchored"), clips, plat,
+                     Path(args.emulator_from) if args.emulator_from else None,
                      anchors=args.anchors, upscale=args.upscale, generator_steps=args.generator_steps,
                      trust_weight=args.trust_weight, max_residual=args.max_residual,
-                     holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed, g_loss=args.g_loss)
+                     holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed, g_loss=args.g_loss,
+                     front=front, emulator_steps=args.emulator_steps, n_variants=args.variants,
+                     pairs_cache=Path(args.pairs_cache) if args.pairs_cache else None)
         return 0
     run_loop(RUNS / (args.name or "surrogate"), clips, plat, rounds=args.rounds, upscale=args.upscale,
              n_variants=args.variants, emulator_steps=args.emulator_steps, generator_steps=args.generator_steps,
@@ -275,7 +281,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--estimator", default="emulator", choices=["emulator", "anchored"],
                    help="anchored: real-anchored forward value through a frozen emulator (E7, docs/E7-plan.md)")
     p.add_argument("--anchors", type=int, default=6, help="anchored: black-box anchor phases (one call per clip each)")
-    p.add_argument("--emulator-from", help="anchored: checkpoint whose E is reused, e.g. runs/p1_g_lpips_s0/round0.pt")
+    p.add_argument("--emulator-from", help="anchored: checkpoint whose E is reused, e.g. runs/p1_g_lpips_s0/round0.pt (default: train E here)")
+    p.add_argument("--front-from", help="anchored: put this optimize run's best theta in front of the black box "
+                   "(E9: G on top of theta)")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_surrogate)
 

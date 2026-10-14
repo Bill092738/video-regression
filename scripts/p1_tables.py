@@ -441,6 +441,49 @@ def e14(d: Data, out: list[str]) -> None:
                IMG / "e14_av1.png")
 
 
+def e14r(d: Data, out: list[str]) -> None:
+    """The rest of E14: ugc_av1-tuned class theta on ugc_strict, and P0's full theta in both directions."""
+    cols = ("composite", "ssimulacra2", "dists", "xpsnr")
+    rows = []  # (platform, class, label, configs, tier)
+    strict_tier = d.base["tier"]
+    native = d.base["theta_class"]
+    moved: dict[str, dict] = {}
+    for k in classify.CLASSES:
+        res = load(f"p1av1_sharp_{k}", "strict")
+        if res:
+            moved.update({c: r["best"] for c, r in res["clips"].items() if d.cls.get(c) == k})
+    if not moved:
+        return
+    out += ["## E14, the rest (exploratory): back to ugc_strict, and P0's full θ both ways", "",
+            "Gain over the target platform's tier-only, on each class's dev + confirm clips, mean [95 % CI over "
+            "clips]. Nothing here changes a P1 verdict.", "",
+            "| target platform | class | configuration | " + " | ".join(cols) + " |", "|---" * (len(cols) + 3) + "|"]
+    # P0's full theta on the P1 clips: native (rescore_p1 on its own platform) and moved to the other platform
+    full, av1_full, av1_tier = {}, {}, {}
+    for run, tag, label in (("strict_gp", "p1", "P0 full θ tuned on ugc_strict (native)"),
+                            ("av1_gp", "strict", "P0 full θ tuned on ugc_av1 (moved)")):
+        res = load(run, tag)
+        if res:
+            full[label] = {c: r["best"] for c, r in res["clips"].items()}
+    for run, tag, label in (("av1_gp", "p1", "P0 full θ tuned on ugc_av1 (native)"),
+                            ("strict_gp", "av1", "P0 full θ tuned on ugc_strict (moved)")):
+        res = load(run, tag)
+        if res:
+            av1_full[label] = {c: r["best"] for c, r in res["clips"].items()}
+            av1_tier = {c: r["upscale_only"] for c, r in res["clips"].items()}
+    for k in ("A", "B", "D"):
+        clips = d.clips(k, ("dev", "confirm"))
+        confs = [("ugc_strict", "class θ tuned on ugc_strict (native)", native, strict_tier),
+                 ("ugc_strict", "class θ tuned on ugc_av1 (moved)", moved, strict_tier),
+                 *[("ugc_strict", lb, a, strict_tier) for lb, a in full.items()],
+                 *[("ugc_av1", lb, a, av1_tier) for lb, a in av1_full.items()]]
+        for plat, label, a, tier in confs:
+            if any(c in a for c in clips):
+                out.append(f"| {plat} | {k} ({len(clips)}) | {label} | " + " | ".join(
+                    fmt(m, *bootstrap(gains(a, tier, clips, m))) for m in cols) + " |")
+    out.append("")
+
+
 # ---------------------------------------------------------------------------------------------- figures
 
 def bar_figure(summary: dict, rows: list[tuple[str, str]], metrics: tuple[str, ...], title: str, path: Path):
@@ -500,6 +543,7 @@ def main() -> int:
                        f"E22: G ({loss}) vs class-tuned sharpening-only θ (dev clips, 95 % CI)", IMG / "e22_dev.png")
         e23(d, out, loss)
     e14(d, out)
+    e14r(d, out)
     (RUNS / "p1_tables.md").write_text("\n".join(out) + "\n")
     print("\n".join(out))
     return 0
