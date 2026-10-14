@@ -746,3 +746,25 @@ Gate check on ugc_av1 (confirm clips; the P1 gate table with its θ either trans
   better than the transferred one on SSIMULACRA2 (+0.9).
 * For P2 this means the sharpening recipe must be validated, and its gate re-checked, on each
   real platform.
+
+### Diagnostic after P1: is `G` short of data, or is the method the limit?
+
+`G` vs the class-tuned sharpening-only θ on class A, mean over clips of the 3-seed mean, on
+`G`'s own **training** clips and on the dev clips. Both `G` and θ were tuned on `@A:train`; the
+global `G` was also trained on B's train clips. Re-scored with `vreg rescore … --tag train`.
+
+| `G` | clips | composite | LPIPS | SSIMULACRA2 | DISTS | XPSNR |
+|---|---|---|---|---|---|---|
+| specialist A | A train (13) | −3.98 | −0.02 | −10.22 | −0.0342 | −0.10 |
+| specialist A | A dev (7) | −1.51 | −0.02 | −7.77 | −0.0452 | −0.37 |
+| global | A train (13) | −2.16 | −0.01 | −6.21 | −0.0089 | +0.16 |
+| global | A dev (7) | +0.46 | +0.01 | −4.28 | −0.0072 | +0.10 |
+
+* **`G` loses to θ even on the clips it was trained on, and by more than on unseen clips.** It
+  loses there even on LPIPS, its own loss, measured on the real (simulated) platform. This is
+  the opposite of overfitting, so more training clips are unlikely to close the gap. Doubling
+  the data (global `G`, 26 clips) narrows it but leaves SSIMULACRA2 −4 to −6.
+* The limit is therefore the method: `G` is optimised through the emulator, while θ is tuned
+  directly on the black box. Its predicted gain does not survive the real channel, although the
+  emulator's pixel PSNR on `G`'s outputs is 31–36 dB. The next experiment for `G` is the
+  real-forward / surrogate-backward estimator (E7), not a larger clip set.
