@@ -311,6 +311,140 @@ def run_loop(
     return history
 
 
+def anchor_offsets(G, E, clips: dict[str, Path], platform: Platform, upscale: float, device: str, fps: float,
+                   workdir: Path) -> list[np.ndarray]:
+    """One black-box call per clip: delta = y_real(G(X)) - E(G(X)) at the training frames, as int16
+    (units of 1/255). Intermediate videos are deleted once read."""
+    offsets = []
+    for clip, src in clips.items():
+        d = workdir / clip
+        d.mkdir(parents=True, exist_ok=True)
+        gx = apply_full_frames(G, ff.read_frames(src), device)
+        gx_path = ff.write_frames(gx, d / "g.mkv", fps, LOSSLESS)
+        playback = send_through_platform(gx_path, upscale, platform, d)
+        y_real = ff.read_frames(playback, size=(gx.shape[2], gx.shape[1]), step=FRAME_STEP)
+        for f in (gx_path, d / "upload.mp4", playback):
+            f.unlink(missing_ok=True)
+        y_sim = apply_full_frames(E, gx[::FRAME_STEP], device)
+        n = min(len(y_real), len(y_sim))
+        offsets.append(y_real[:n].astype(np.int16) - y_sim[:n].astype(np.int16))
+    return offsets
+
+
+def train_generator_anchored(G, E, sources: list[np.ndarray], steps: int, anchors: int, anchor_fn, device: str,
+                             rng: random.Random, perceptual, lr: float, l1_weight: float, log,
+                             trust_weight: float = 0.0) -> tuple[list[float], list[dict]]:
+    """``train_generator`` with the real-anchored estimator (docs/E7-plan.md).
+
+    The steps are split into ``anchors`` phases. At the start of each, ``anchor_fn(G)`` returns
+    delta = y_real - E(G(X)) per source (the black box's output at the current G), and the phase
+    trains on  y_hat = E(G(X)) + stopgrad(delta): the real output at the anchor, plus the
+    emulator's predicted change, with the emulator's gradient. One optimiser runs through all
+    phases, as in ``train_generator``.
+    """
+    for p in E.parameters():
+        p.requires_grad_(False)
+    E.eval()
+    opt = torch.optim.Adam(G.parameters(), lr=lr)
+    bounds = [round(i * steps / anchors) for i in range(anchors + 1)]
+    losses, anchor_log = [], []
+    for k in range(anchors):
+        offsets = anchor_fn(G)
+        n = [min(len(s), len(o)) for s, o in zip(sources, offsets)]
+        anchor_log.append({"step": bounds[k], "mean_abs_offset": float(np.mean([np.abs(o).mean() for o in offsets]))})
+        log(f"  anchor {k + 1}/{anchors} at step {bounds[k]}: mean |y_real - E(G(X))| = "
+            f"{anchor_log[-1]['mean_abs_offset']:.2f} levels")
+        pairs = PairSet()
+        for s, o, m in zip(sources, offsets, n):
+            pairs.add(s[:m], o[:m], "anchor")
+        G.train()
+        for step in range(bounds[k], bounds[k + 1]):
+            x, delta = pairs.sample(8, rng, device)  # delta: int16 offsets / 255, aligned and flipped with x
+            gx = G(x).clamp(0, 1)
+            y_hat = (E(gx) + delta).clamp(0, 1)
+            loss = perceptual(y_hat, x) + l1_weight * F.l1_loss(y_hat, x)
+            if trust_weight:
+                loss = loss + trust_weight * F.l1_loss(gx, x)
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            opt.step()
+            losses.append(loss.item())
+            if (step + 1) % 250 == 0:
+                log(f"  G step {step + 1}/{steps} loss={np.mean(losses[-250:]):.4f}")
+    for p in E.parameters():
+        p.requires_grad_(True)
+    return losses, anchor_log
+
+
+def run_anchored(
+    out_dir: Path,
+    clips: dict[str, Path],
+    platform: Platform,
+    emulator_from: Path,
+    anchors: int = 6,
+    upscale: float = 2.0,
+    generator_steps: int = 1500,
+    l1_weight: float = 1.0,
+    trust_weight: float = 2.0,
+    max_residual: float = 0.06,
+    holdout: dict[str, Path] | None = None,
+    seed: int = 0,
+    g_loss: str = "lpips",
+    log=lambda s: print(s, flush=True),
+) -> dict:
+    """E7: train G with the real-anchored estimator through a frozen emulator taken from another run.
+
+    Writes the same ``history.json`` / ``round0.pt`` layout as ``run_loop`` (one round), plus the
+    estimator settings and the number of black-box calls, so ``vreg rescore`` works unchanged.
+    """
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    rng = random.Random(seed)
+    torch.manual_seed(seed)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    holdout = {c: p for c, p in (holdout or {}).items() if c not in clips}
+    all_clips = {**clips, **holdout}
+    perceptual = perceptual_loss(g_loss)
+    E = emulator().to(device)
+    E.load_state_dict(torch.load(emulator_from, map_location=device)["E"])
+    G = generator(max_residual=max_residual).to(device)
+
+    work = cache_root(platform)
+    baselines = {}
+    for clip, src in all_clips.items():
+        baselines[clip] = {"naive": evaluate(clip, src, {}, platform, work).metrics,
+                           "upscale_only": evaluate(clip, src, {"upscale": upscale}, platform, work).metrics}
+    train_sources = [ff.read_frames(p, step=FRAME_STEP) for p in clips.values()]
+    fps = ff.probe(next(iter(clips.values()))).fps
+
+    t0 = time.perf_counter()
+    log(f"train generator ({g_loss}, {anchors} real anchors, emulator from {emulator_from})")
+    g_hist, anchor_log = train_generator_anchored(
+        G, E, train_sources, generator_steps, anchors,
+        lambda g: anchor_offsets(g, E, clips, platform, upscale, device, fps, out_dir / "anchor"),
+        device, rng, perceptual, lr=1e-4, l1_weight=l1_weight, log=log, trust_weight=trust_weight)
+    rec = {"round": 0, "generator_loss": float(np.mean(g_hist[-200:])), "anchors": anchor_log, "clips": {}}
+    for clip, src in all_clips.items():
+        c_rec, _, _ = validate_clip(G, E, clip, src, out_dir / "round0" / clip, platform, upscale, device, fps)
+        c_rec["holdout"] = clip in holdout
+        rec["clips"][clip] = c_rec
+        log(f"  [{'holdout' if clip in holdout else 'train'}] {clip}: G={c_rec['metrics']['composite']:.2f} "
+            f"(upscale-only {baselines[clip]['upscale_only']['composite']:.2f}) "
+            f"emulator PSNR on G(X)={c_rec['emulator_psnr_on_G']:.1f} dB  |G(X)-X|={c_rec['mean_abs_residual']:.2f}")
+    rec["seconds"] = time.perf_counter() - t0
+    torch.save({"E": E.state_dict(), "G": G.state_dict()}, out_dir / "round0.pt")
+    settings = {"estimator": "anchored", "anchors": anchors, "emulator_from": str(emulator_from),
+                "trust_weight": trust_weight, "max_residual": max_residual, "generator_steps": generator_steps,
+                "g_loss": g_loss, "seed": seed, "train_clips": list(clips),
+                "blackbox_calls": {"anchors": anchors * len(clips), "validation": len(all_clips),
+                                   "emulator_pairs_inherited": "see the emulator_from run"}}
+    hist = {"baselines": baselines, "rounds": [rec], "upscale": upscale, "platform": platform.name,
+            "settings": settings, "sources": {c: str(p) for c, p in all_clips.items()}}
+    (out_dir / "history.json").write_text(json.dumps(hist, indent=2))
+    return hist
+
+
 def evaluate_trained(run_dir: Path, clips: dict[str, Path], rnd: int = 0, tag: str = "eval",
                      log=lambda s: print(s, flush=True)) -> dict:
     """Validate a trained run's round-``rnd`` G on further clips, without retraining (P1 E23).

@@ -164,11 +164,19 @@ def cmd_report(args) -> int:
 
 
 def cmd_surrogate(args) -> int:
-    from .surrogate.loop import run_loop
+    from .surrogate.loop import run_anchored, run_loop
     from .platform import make_platform
 
     plat = make_platform(args.platform)
     clips = _clips(args.clips)
+    if args.estimator == "anchored":
+        if not args.emulator_from:
+            raise SystemExit("--estimator anchored needs --emulator-from RUN/round0.pt")
+        run_anchored(RUNS / (args.name or "surrogate_anchored"), clips, plat, Path(args.emulator_from),
+                     anchors=args.anchors, upscale=args.upscale, generator_steps=args.generator_steps,
+                     trust_weight=args.trust_weight, max_residual=args.max_residual,
+                     holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed, g_loss=args.g_loss)
+        return 0
     run_loop(RUNS / (args.name or "surrogate"), clips, plat, rounds=args.rounds, upscale=args.upscale,
              n_variants=args.variants, emulator_steps=args.emulator_steps, generator_steps=args.generator_steps,
              finetune_fraction=args.finetune_fraction, trust_weight=args.trust_weight, max_residual=args.max_residual,
@@ -264,6 +272,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--g-loss", default="lpips", choices=["lpips", "dists", "lpips+dists"],
                    help="perceptual part of G's training loss (G is never judged by it)")
     p.add_argument("--pairs-cache", help="directory of round-0 pairs shared between runs (default: inside the run)")
+    p.add_argument("--estimator", default="emulator", choices=["emulator", "anchored"],
+                   help="anchored: real-anchored forward value through a frozen emulator (E7, docs/E7-plan.md)")
+    p.add_argument("--anchors", type=int, default=6, help="anchored: black-box anchor phases (one call per clip each)")
+    p.add_argument("--emulator-from", help="anchored: checkpoint whose E is reused, e.g. runs/p1_g_lpips_s0/round0.pt")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_surrogate)
 
