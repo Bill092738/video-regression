@@ -19,7 +19,7 @@ are in [`docs/related-work.md`](docs/related-work.md). The full result tables ar
 | HTML report: convergence, sensitivity, crops, transfer table, surrogate rounds; mean ± sd across seeds | done | `vreg report` |
 | Report-only judges SSIMULACRA2, DISTS, XPSNR (not in `composite`), back-filled from cached playbacks; frozen knobs (`--fix`) | done (P0) | `vreg rescore`, `vreg optimize --fix`, `src/vreg/metrics.py` |
 | P0 experiments E1–E5 | done | [§6](#6-p0-results), `scripts/run_p0.sh`, `scripts/p0_tables.py` |
-| P1 plan: content-scoped learned `G`, gate, pre-registered classes (E19–E23) | **planned** | [`docs/P1-plan.md`](docs/P1-plan.md) |
+| P1: content-scoped learned `G`, gate, pre-registered classes (E19–E23), 77-clip licensed set | done: H1 not confirmed, gate accepted | [§7](#7-p1-results), `docs/p1/`, `scripts/run_p1.sh`, `scripts/p1_tables.py` |
 | Unit tests on tiny clips, CI without torch | done | `tests/`, `.github/workflows/ci.yml` |
 | Prior-work and license review | done | `docs/related-work.md` |
 
@@ -30,6 +30,11 @@ are in [`docs/related-work.md`](docs/related-work.md). The full result tables ar
 > SSIMULACRA2 and XPSNR are lower than tier-only on every natural clip, on every seed. It
 > downgraded point 6: `G` beats tier-only on 3/4 natural clips and beats θ only on
 > old_town_cross. Point 2, the tier gain, is confirmed by every independent metric.
+>
+> **P1 ([§7](#7-p1-results))** settles point 6 on 77 clips with pre-registered classes: the learned
+> `G` does not beat a class-tuned sharpening-only θ on any class, and it damages graphics and
+> animation. Point 4 is refined: mild sharpening alone does not hurt graphics; the content gate
+> that is accepted is "sharpen natural low-motion content, tier-only elsewhere".
 
 All numbers are from **simulated** platforms, with **one seed** per configuration and 3-second
 clips. They show that the method and the tooling work. They are not yet evidence about real
@@ -67,9 +72,11 @@ platforms.
 * **The objective and the independent judges disagree on the filter gain** (P0, §6). No single
   metric optimised so far is free of regressions on the others, and there is no viewer study
   to decide which side is right.
-* **The learned `G`'s advantage is narrow and untested by content type.** It beats GP-BO θ only
-  on old_town_cross, and the four natural clips are too few to tell which content it suits. P1
-  addresses this with pre-registered content classes and a larger clip set.
+* **The learned `G` does not beat simple sharpening on any content class** (P1, §7). It raises
+  LPIPS, its training loss, and lowers SSIMULACRA2 and DISTS. Whether a better-constrained `G`
+  (the P1-later items E7–E9) can do better is open.
+* **Class C (natural, flat or dark) is untested:** the licensed natural sources gave one such
+  clip. Own recordings could be added as a separate exploratory addendum.
 * **Domain-adaptation rounds degrade.** `E`'s fidelity on `G`'s outputs stays at about 25 dB on
   dense texture, and `G`'s residual keeps growing.
 * **The simulator lacks some real behaviours:**
@@ -100,27 +107,29 @@ Execution plan (code changes, commands, decision rules): [`docs/P0-plan.md`](doc
 | E4 | ✅ **Goodhart matrix**: optimise for VMAF NEG only, for composite, and for SSIMULACRA2; evaluate each result with all metrics | 3 objectives × all metrics | The objective whose optimum still scores well on the other metrics becomes the default |
 | E5 | ✅ **Filter-only at the native tier**: search θ with the upscale fixed at ×1 | filter gain at ×1 vs filter gain at ×2 | Separates the filter gain from the tier gain more cleanly than the transfer table |
 
-### P1 (current): content-scoped learned pre-compensation
+### P1: content-scoped learned pre-compensation
 
 Execution plan: [`docs/P1-plan.md`](docs/P1-plan.md). P0 confirmed only the tier gain. P1 tests
 whether a learned `G` beats the strongest surviving filter, a class-tuned sharpening-only θ, for
 a content class defined **before** training. It also adds a gate that switches filters off
 elsewhere. Classes, hypotheses, splits and decision rules are pre-registered, and the confirm
-split is evaluated once.
+split is evaluated once. **All five are done.** The results and verdicts are in [§7](#7-p1-results).
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
-| E19 | **Content set and classes**: about 60 licensed 3 s clips; SI/TI, flat and dark fractions; classes A (natural, low motion, moderate detail), B (dense texture or high motion), C (flat, gradient or dark), D (graphics, text, screen, animation); train/dev/confirm splits grouped by source | none (set-up) | ≥ 12 clips in A and B, ≥ 8 in C and D; `docs/p1/` committed before any training |
-| E20 | **Baselines per class**: naive, tier-only, P0 global sharpening-only θ, class-tuned sharpening-only θ | per class, all metrics | Fixes the baseline `G` must beat |
-| E21 | **`G` loss selection**: LPIPS vs DISTS vs LPIPS+DISTS (a `G` is never judged by its own loss) | on class A dev | One loss fixed for E22–E23 |
-| E22 | **Specialist vs global `G`**, 3 seeds | global `G`, specialist A, specialist B vs class-tuned sharpening-only θ, on dev | Choose the `G` and the gate table before E23 |
-| E23 | **Gate and confirmation** (once, on the confirm split) | gated system vs tier-only vs global sharpening-only θ | H1: ≥ 2 judges with a 95 % CI over clips excluding 0, SSIMULACRA2 not worse, sign holds in ≥ 2/3 seeds. Gate: no class worse than tier-only on SSIMULACRA2 or XPSNR |
+| E19 | ✅ **Content set and classes**: about 60 licensed 3 s clips; SI/TI, flat and dark fractions; classes A (natural, low motion, moderate detail), B (dense texture or high motion), C (flat, gradient or dark), D (graphics, text, screen, animation); train/dev/confirm splits grouped by source | none (set-up) | ≥ 12 clips in A and B, ≥ 8 in C and D; `docs/p1/` committed before any training |
+| E20 | ✅ **Baselines per class**: naive, tier-only, P0 global sharpening-only θ, class-tuned sharpening-only θ | per class, all metrics | Fixes the baseline `G` must beat |
+| E21 | ✅ **`G` loss selection**: LPIPS vs DISTS vs LPIPS+DISTS (a `G` is never judged by its own loss) | on class A dev | One loss fixed for E22–E23 |
+| E22 | ✅ **Specialist vs global `G`**, 3 seeds | global `G`, specialist A, specialist B vs class-tuned sharpening-only θ, on dev | Choose the `G` and the gate table before E23 |
+| E23 | ✅ **Gate and confirmation** (once, on the confirm split) | gated system vs tier-only vs global sharpening-only θ | H1: ≥ 2 judges with a 95 % CI over clips excluding 0, SSIMULACRA2 not worse, sign holds in ≥ 2/3 seeds. Gate: no class worse than tier-only on SSIMULACRA2 or XPSNR |
 
 E6 (content-adaptive θ) is absorbed into E19–E23: the gate is its content-adaptive part.
 
 ### P1-later: method improvements
 
-These items wait until P1 shows whether a learned `G` is worth improving.
+These items waited on P1. P1 found that the current `G` does not beat class-tuned sharpening on
+any content class ([§7](#7-p1-results)), so they are now the only route by which a learned `G` could
+earn its place. Success should be judged against the P1 gate, not against tier-only.
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
@@ -150,8 +159,6 @@ These items wait until P1 shows whether a learned `G` is worth improving.
 ## 5. Engineering backlog
 
 * Add a `LICENSE` file (MIT or Apache-2.0 fit the current dependencies).
-* P1 code changes (manifest-driven clips, `vreg features`, `vreg classify`, clip selectors,
-  `--g-loss`, `--pairs-cache`, P1 tables): see [`docs/P1-plan.md`](docs/P1-plan.md).
 * Record upload size and bitrate as a cost in every evaluation.
 * A `CommandPlatform` example script for one platform, with rate limiting and private uploads
   (E15, E16).
@@ -592,3 +599,87 @@ clip's value is the mean over the three seeds; CIs are 95 % bootstrap over clips
 
 * E23 evaluates the global `G` (3 seeds) on the 19 confirm clips, once, with no retraining and no
   threshold changes.
+
+### E23: confirmation (confirm split, evaluated once)
+
+The global `G` (loss `lpips`, 3 seeds) was evaluated on the 19 confirm clips with no retraining
+and no change to thresholds or decisions (`vreg surrogate-eval … --clips @*:confirm`).
+
+#### H1: class A, G vs class-tuned sharpening-only θ (7 clips, 95 % CI)
+
+| judge | gain [CI] | CI excludes 0 (positive) | positive seeds |
+|---|---|---|---|
+| ssimulacra2 | **-3.52 [-4.26, -2.89]** | no | 0/3 |
+| dists | **-0.0112 [-0.0139, -0.0086]** | no | 0/3 |
+| xpsnr | +0.01 [-0.07, +0.10] | no | 1/3 |
+
+1. ≥ 2 judges with a CI above 0: **no** (0)
+2. SSIMULACRA2 mean gain ≥ 0: **no** (-3.52)
+3. sign holds in ≥ 2 of 3 seeds for those judges: **no**
+
+**H1 (A): not confirmed.**
+
+#### Gate on the confirm split
+
+Gate table (chosen on dev): A → theta, B → tier, C → tier, D → tier.
+
+| class | clips | SSIMULACRA2 gate − tier | XPSNR gate − tier | not worse than tier-only |
+|---|---|---|---|---|
+| A | 7 | +0.11 [-0.89, +0.97] | **+0.32 [+0.24, +0.40]** | yes |
+| B | 6 | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] | yes |
+| C | 0 | – | – | not tested (report only) |
+| D | 6 | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] | yes |
+
+| judge | gate − P0 global sharpening-only θ, all confirm clips |
+|---|---|
+| ssimulacra2 | +1.03 [-0.39, +2.28] |
+| dists | +0.0007 [-0.0007, +0.0023] |
+| xpsnr | **-0.18 [-0.30, -0.06]** |
+
+**Gate: accepted** (every class ≥ tier-only on SSIMULACRA2 and XPSNR: yes; ≥ global θ on 2/3 judges).
+
+#### Exploratory: every configuration on the confirm split, per class (H2, H3)
+
+Gain over tier-only, mean [95 % CI over clips]; G is the mean over its 3 seeds per clip.
+
+| class | configuration | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|
+| A (7) | class-tuned θ | **+2.06 [+1.39, +2.75]** | +0.11 [-0.89, +0.97] | **+0.0023 [+0.0005, +0.0040]** | **+0.32 [+0.24, +0.40]** |
+| A (7) | P0 global θ | **+1.54 [+1.09, +2.03]** | +0.21 [-0.45, +0.68] | **+0.0017 [+0.0004, +0.0029]** | **+0.22 [+0.16, +0.27]** |
+| A (7) | global G (@natural:train) | **+5.99 [+1.30, +11.15]** | **-3.41 [-4.31, -2.52]** | **-0.0090 [-0.0110, -0.0070]** | **+0.33 [+0.24, +0.42]** |
+| A (7) | G − class-tuned θ | +3.92 [-0.59, +9.08] | **-3.52 [-4.26, -2.89]** | **-0.0112 [-0.0139, -0.0086]** | +0.01 [-0.07, +0.10] |
+| B (6) | class-tuned θ | +0.52 [-0.09, +1.12] | **-3.86 [-4.82, -2.79]** | -0.0020 [-0.0053, +0.0011] | **+0.28 [+0.13, +0.46]** |
+| B (6) | P0 global θ | +0.48 [-0.18, +1.14] | **-3.91 [-4.96, -2.94]** | -0.0027 [-0.0063, +0.0006] | **+0.28 [+0.14, +0.46]** |
+| B (6) | global G (@natural:train) | -0.84 [-1.74, +0.10] | **-5.46 [-6.78, -3.99]** | -0.0043 [-0.0096, +0.0015] | **+0.37 [+0.19, +0.55]** |
+| B (6) | G − class-tuned θ | **-1.36 [-2.31, -0.55]** | -1.61 [-3.37, +0.16] | -0.0023 [-0.0094, +0.0053] | +0.09 [-0.02, +0.19] |
+| D (6) | class-tuned θ | **+0.89 [+0.27, +1.50]** | +0.26 [-2.31, +3.78] | +0.0024 [-0.0008, +0.0062] | **+0.55 [+0.29, +0.87]** |
+| D (6) | P0 global θ | **+0.80 [+0.16, +1.37]** | +0.53 [-1.79, +3.88] | +0.0012 [-0.0007, +0.0028] | **+0.39 [+0.25, +0.54]** |
+| D (6) | global G (@natural:train) | +1.27 [-0.78, +4.07] | **-5.55 [-8.86, -2.99]** | **-0.0601 [-0.1329, -0.0060]** | -1.83 [-5.62, +0.10] |
+| D (6) | G − class-tuned θ | +0.38 [-1.62, +2.87] | **-5.81 [-10.28, -1.53]** | **-0.0625 [-0.1382, -0.0064]** | **-2.38 [-6.50, -0.24]** |
+
+![E23 confirm](docs/img/p1/e23_confirm.png)
+
+* Gate bookkeeping: the first run of the gate check counted class C (report-only, no confirm
+  clips) as "worse than tier-only", because the mean over zero clips is undefined. C was excluded
+  from every statistical test before E20, so the script now marks it "not tested". Gate C is
+  tier-only, so its single report-only clip is unchanged by the gate in any case. Nothing else
+  changed, and the confirm split was not re-run.
+
+### P1 verdicts
+
+| # | Hypothesis | Verdict |
+|---|---|---|
+| H1 | Class A: the learned `G` beats the class-tuned sharpening-only θ (confirmatory) | **not confirmed.** On the 7 confirm clips, 0 of 3 judges have a CI above 0. SSIMULACRA2 is −3.5 [−4.3, −2.9] and DISTS −0.011 [−0.014, −0.009], both in all 3 seeds. XPSNR ties (+0.01). `G` still raises the objective (composite +6.0 over tier-only, against +2.1 for the θ), so its gain is in LPIPS, the metric it was trained on |
+| H2 | Class B: `G` does not beat the sharpening-only θ (exploratory) | **supported.** `G` − θ: composite −1.4 (CI below 0), SSIMULACRA2 −1.6, DISTS and XPSNR tie. On B, sharpening itself lowers SSIMULACRA2 (−3.9 vs tier-only) |
+| H3 | Classes C and D: every filter, `G` included, is worse than tier-only (exploratory) | **partly supported, D only.** The learned `G` damages D (SSIMULACRA2 −5.6, DISTS −0.060, XPSNR −1.8 vs tier-only). Mild sharpening does not (XPSNR +0.55, SSIMULACRA2 and DISTS tie). **Not testable for C** (n = 1, report-only) |
+| Gate | Sharpening-only θ on A, tier-only on B, C, D (chosen on dev) | **accepted.** No tested class is below tier-only on SSIMULACRA2 or XPSNR. Over all confirm clips, the gate ties or beats the global θ on SSIMULACRA2 (+1.0) and DISTS (+0.0007), both CIs spanning 0. It loses on XPSNR (−0.18, CI below 0) |
+
+**Result.** Following the plan's rule for a failed H1, this is reported as a negative result: on
+this black box, the gain an uploader can get beyond the tier trick comes from simple sharpening,
+not from a learned `G`.
+* The class-tuned sharpening-only θ helps natural low-motion content (class A: DISTS and XPSNR
+  up, SSIMULACRA2 flat).
+* It should be switched off on dense texture (class B: SSIMULACRA2 −3.9).
+* The learned `G` wins only on its own training metric.
+
+Because H1 failed, no new class is searched for on the confirm split.

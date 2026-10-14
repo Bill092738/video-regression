@@ -340,6 +340,10 @@ def e23(d: Data, out: list[str], loss: str) -> None:
     ok_classes = True
     for k in classify.CLASSES:
         cl = [c for c in d.clips(k, ("confirm",)) if c in gated]
+        if k in d.classes.get("report_only", ()) or not cl:
+            # report-only classes have no confirm clips and are excluded from every test (E19)
+            out.append(f"| {k} | 0 | – | – | not tested (report only) |")
+            continue
         s2 = bootstrap(gains(gated, d.base["tier"], cl, "ssimulacra2"))
         xp = bootstrap(gains(gated, d.base["tier"], cl, "xpsnr"))
         ok = s2[0] >= 0 and xp[0] >= 0
@@ -352,8 +356,31 @@ def e23(d: Data, out: list[str], loss: str) -> None:
         wins.append(st[0] >= 0)
         out.append(f"| {m} | {fmt(m, *st)} |")
     accepted = ok_classes and sum(wins) >= 2
+    explore = ["### Exploratory: every configuration on the confirm split, per class (H2, H3)", "",
+               "Gain over tier-only, mean [95 % CI over clips]; G is the mean over its 3 seeds per clip.", "",
+               "| class | configuration | " + " | ".join(("composite", *judges)) + " |",
+               "|---" * (len(judges) + 3) + "|"]
+    for k in classify.CLASSES:
+        cl = d.clips(k, ("confirm",))
+        if not cl:
+            continue
+        for label, a in (("class-tuned θ", d.base["theta_class"]), ("P0 global θ", d.base["theta_global"]),
+                         (G_KINDS[dec["g_for_A"]], g)):
+            explore.append(f"| {k} ({len(cl)}) | {label} | " + " | ".join(
+                fmt(m, *bootstrap(gains(a, d.base["tier"], cl, m))) for m in ("composite", *judges)) + " |")
+        explore.append(f"| {k} ({len(cl)}) | G − class-tuned θ | " + " | ".join(
+            fmt(m, *bootstrap(gains(g, d.base["theta_class"], cl, m))) for m in ("composite", *judges)) + " |")
+    explore.append("")
+    summary = {k: {key: {m: bootstrap(gains(a, d.base["tier"], d.clips(k, ("confirm",)), m)) for m in judges}
+                   for key, a in (("theta_class", d.base["theta_class"]), ("theta_global", d.base["theta_global"]),
+                                  ("G", g))}
+               for k in classify.CLASSES if d.clips(k, ("confirm",))}
+    bar_figure(summary, [("class-tuned θ", "theta_class"), ("P0 global θ", "theta_global"),
+                         (G_KINDS[dec["g_for_A"]], "G")], judges,
+               "E23: confirm split, gain over tier-only (95 % CI over clips)", IMG / "e23_confirm.png")
     out += ["", f"**Gate: {'accepted' if accepted else 'not accepted'}** (every class ≥ tier-only on SSIMULACRA2 "
-            f"and XPSNR: {'yes' if ok_classes else 'no'}; ≥ global θ on {sum(wins)}/{len(judges)} judges).", ""]
+            f"and XPSNR: {'yes' if ok_classes else 'no'}; ≥ global θ on {sum(wins)}/{len(judges)} judges).", "",
+            *explore]
 
 
 # ---------------------------------------------------------------------------------------------- figures
