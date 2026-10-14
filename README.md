@@ -290,7 +290,10 @@ Bold: the 95 % bootstrap CI over clips excludes 0; n.s.: it does not.
    alone does not. The content gate that P1 accepts sharpens only natural low-motion content and
    uses tier-only elsewhere.
 4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`. The `ugc_av1`
-   filter gain passes the independent-metric check on average, but it rests on one clip.
+   filter gain passes the independent-metric check on average, but it rests on one clip. The
+   P1 gate does not transfer either: on `ugc_av1`, sharpening class A costs SSIMULACRA2 on
+   rate-starved clips (up to −25), so the gate needs re-checking per platform
+   ([addendum](PROGRESS.md#8-addendum-the-p1-recipe-on-simugc_av1-exploratory-e14-applied-to-p1)).
 5. A learned `G` exploits its emulator unless it is constrained. With a trust region it beats
    tier-only on the objective, but not on SSIMULACRA2. In P1's pre-registered test on 77 clips
    it does **not** beat class-tuned sharpening on any content class: it lowers SSIMULACRA2 and
