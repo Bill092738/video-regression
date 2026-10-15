@@ -135,7 +135,7 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 |---|---|---|---|
 | E7 | ✅ **Real-forward / surrogate-backward estimator** for `G`: `y = y_real + E(x) − stopgrad(E(x))`, following SelfC and SCALED | current `G` (emulator forward) vs this estimator | No collapse without a trust region; the gain on dense texture (park_joy, ducks) moves closer to GP-BO θ |
 | E8 | **Emulator robustness**: an ensemble of `E` with a disagreement penalty; a conservative (COMs-style) `E`; `G`-like perturbations in round-0 data; temporal context (stacked frames) | trust region only vs each option | Emulator PSNR on `G`'s outputs above 30 dB, and domain-adaptation rounds improve instead of degrading |
-| E9 | **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
+| E9 | ✅ **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
 | E10 | **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
 | E11 | **Common creator recipe as a baseline**: lanczos ×2 + mild unsharp, at a fixed upload bitrate | creator recipe vs best θ | Shows what the optimiser adds over standard advice |
 
@@ -145,7 +145,7 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 |---|---|---|---|
 | E12 | Add a **passthrough branch below a bitrate cap** (Bilibili-style "no second encode"); make upload bitrate part of θ | old vs new profile; does the optimiser find the passthrough region? | The optimiser discovers the bitrate threshold when it exists |
 | E13 | Add **AV1 film-grain synthesis** (denoise + grain table) to `ugc_av1`, and **several renditions** (480p/720p/1080p, weighted) | single 720p rendition vs multi-rendition objective | θ that is robust across renditions |
-| E14 | ◐ (ugc_strict → ugc_av1 for the sharpening-only θ done, §8; the reverse direction is not) **Cross-platform transfer**: apply the `ugc_strict` θ to `ugc_av1` and the reverse | transferred vs native θ | Quantifies how much tuning per platform matters |
+| E14 | ✅ (§8, §8b) **Cross-platform transfer**: apply the `ugc_strict` θ to `ugc_av1` and the reverse | transferred vs native θ | Quantifies how much tuning per platform matters |
 
 ### P2: real platform and human study
 
@@ -845,3 +845,118 @@ estimator.
   route is therefore not a candidate for P2's 15–20-upload budget, whatever E9 shows. Its value
   is in explaining *why* learned pre-processing loses (the emulator gap), not as a practical
   recipe.
+
+### 8b. The rest of E14 (exploratory): back to ugc_strict, and P0's full θ both ways
+
+Run unattended after E9 (`scripts/run_p1.sh e14r`). It uses the same frozen classes and splits
+and changes no verdict.
+* The ugc_av1-tuned class θ is evaluated on ugc_strict.
+* P0's full GP-BO θ (`strict_gp`, `av1_gp`; contrast, saturation, grain, sharpening, ×2) is
+  evaluated on the P1 clips, both on its own platform and on the other one.
+
+Gain over the target platform's tier-only, on each class's dev + confirm clips, mean [95 % CI over clips]. Nothing here changes a P1 verdict.
+
+| target platform | class | configuration | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| ugc_strict | A (14) | class θ tuned on ugc_strict (native) | **+2.02 [+1.60, +2.43]** | +0.08 [-0.52, +0.63] | **+0.0017 [+0.0005, +0.0028]** | **+0.36 [+0.30, +0.43]** |
+| ugc_strict | A (14) | class θ tuned on ugc_av1 (moved) | **+1.82 [+1.44, +2.20]** | +0.04 [-0.45, +0.49] | +0.0010 [-0.0003, +0.0022] | **+0.37 [+0.30, +0.43]** |
+| ugc_strict | A (14) | P0 full θ tuned on ugc_strict (native) | **+1.73 [+1.36, +2.15]** | **-5.37 [-6.34, -4.54]** | **-0.0022 [-0.0042, -0.0005]** | **-4.64 [-5.91, -3.30]** |
+| ugc_strict | A (14) | P0 full θ tuned on ugc_av1 (moved) | **+1.88 [+1.48, +2.27]** | **-1.61 [-1.98, -1.28]** | -0.0004 [-0.0018, +0.0009] | **-2.38 [-3.19, -1.55]** |
+| ugc_av1 | A (14) | P0 full θ tuned on ugc_av1 (native) | +0.34 [-1.25, +1.50] | **-4.65 [-8.51, -1.86]** | -0.0033 [-0.0087, +0.0002] | **-2.51 [-3.34, -1.67]** |
+| ugc_av1 | A (14) | P0 full θ tuned on ugc_strict (moved) | **+0.78 [+0.19, +1.38]** | **-6.36 [-7.62, -5.26]** | **-0.0030 [-0.0048, -0.0016]** | **-4.75 [-6.05, -3.39]** |
+| ugc_strict | B (12) | class θ tuned on ugc_strict (native) | **+0.67 [+0.23, +1.06]** | **-3.35 [-4.19, -2.43]** | -0.0007 [-0.0027, +0.0011] | **+0.28 [+0.20, +0.38]** |
+| ugc_strict | B (12) | class θ tuned on ugc_av1 (moved) | **+0.79 [+0.42, +1.14]** | **-2.68 [-3.38, -1.89]** | -0.0002 [-0.0017, +0.0013] | **+0.27 [+0.19, +0.36]** |
+| ugc_strict | B (12) | P0 full θ tuned on ugc_strict (native) | +0.80 [-0.93, +2.13] | **-3.77 [-5.72, -2.22]** | -0.0016 [-0.0053, +0.0019] | **-1.56 [-2.35, -0.86]** |
+| ugc_strict | B (12) | P0 full θ tuned on ugc_av1 (moved) | **+1.27 [+0.61, +1.83]** | **-3.47 [-4.20, -2.78]** | -0.0015 [-0.0038, +0.0004] | **-0.52 [-0.96, -0.13]** |
+| ugc_av1 | B (12) | P0 full θ tuned on ugc_av1 (native) | -1.90 [-3.94, +0.12] | **-8.34 [-12.34, -4.72]** | **-0.0090 [-0.0150, -0.0035]** | **-0.85 [-1.23, -0.50]** |
+| ugc_av1 | B (12) | P0 full θ tuned on ugc_strict (moved) | +1.96 [-2.14, +6.55] | -0.52 [-6.71, +6.22] | +0.0034 [-0.0077, +0.0173] | **-1.19 [-2.14, -0.19]** |
+| ugc_strict | D (12) | class θ tuned on ugc_strict (native) | **+1.09 [+0.41, +1.70]** | -0.10 [-2.38, +2.12] | +0.0012 [-0.0019, +0.0040] | **+0.53 [+0.29, +0.78]** |
+| ugc_strict | D (12) | class θ tuned on ugc_av1 (moved) | **+0.95 [+0.42, +1.44]** | +0.66 [-0.96, +2.49] | +0.0006 [-0.0013, +0.0021] | **+0.45 [+0.26, +0.66]** |
+| ugc_strict | D (12) | P0 full θ tuned on ugc_strict (native) | -2.88 [-6.99, +0.94] | **-10.49 [-16.95, -4.48]** | **-0.0119 [-0.0262, -0.0004]** | **-7.32 [-11.74, -3.74]** |
+| ugc_strict | D (12) | P0 full θ tuned on ugc_av1 (moved) | **+0.99 [+0.23, +1.73]** | **-4.26 [-7.69, -1.24]** | -0.0027 [-0.0078, +0.0023] | **-4.96 [-8.71, -2.17]** |
+| ugc_av1 | D (12) | P0 full θ tuned on ugc_av1 (native) | +0.23 [-0.89, +1.34] | **-5.19 [-8.96, -1.64]** | **-0.0065 [-0.0119, -0.0014]** | **-5.13 [-9.08, -2.21]** |
+| ugc_av1 | D (12) | P0 full θ tuned on ugc_strict (moved) | -3.12 [-7.06, +0.29] | **-9.94 [-16.59, -3.32]** | **-0.0116 [-0.0232, -0.0021]** | **-7.56 [-12.22, -3.77]** |
+
+* **The sharpening-only θ moves well onto ugc_strict.** The θ tuned on ugc_av1 keeps nearly all
+  of the native θ's gain on A (composite +1.8 vs +2.0, XPSNR +0.37 vs +0.36, SSIMULACRA2 flat). In
+  the other direction (§8) it failed on rate-starved AV1 clips. The asymmetry comes from the
+  **target platform's rate headroom**, not from where θ was tuned.
+* **P0's full θ is bad for the judges on every platform and every class, native or moved.**
+  SSIMULACRA2 is −1.6 to −10.5 and XPSNR −0.5 to −7.6, while `composite` stays positive in most
+  cells. This extends P0's metric-hacking finding to 66 more clips and to both platforms.
+  Contrast, saturation and grain are what hurt. The moved ugc_av1 full θ, which has no grain, is
+  less harmful on ugc_strict than ugc_strict's own full θ.
+
+## 10. E9 results: a learned `G` on top of the class-tuned θ
+
+Plan, pre-registered before any run: [`docs/E9-plan.md`](docs/E9-plan.md).
+* The class A θ (×2, unsharp 1.06, 5×5) is moved into the channel `platform ∘ θ_A`, so at
+  `G = identity` the output is θ_A's.
+* A new emulator of that channel is trained (156 black-box calls, shared by the seeds).
+* `G` is trained with the E7 estimator (6 anchors), with everything else as in E7a; 3 seeds.
+
+#### G − class-tuned θ, class A dev (7 clips)
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G | 3 | +0.46 [-1.45, +2.14] | +0.0146 [-0.0156, +0.0474] | **-4.28 [-5.21, -3.24]** | **-0.0072 [-0.0138, -0.0005]** | +0.10 [-0.56, +0.84] |
+| E7a (6 anchors) | 3 | -0.38 [-2.15, +1.46] | +0.0076 [-0.0036, +0.0183] | **-0.84 [-1.39, -0.25]** | **+0.0048 [+0.0003, +0.0093]** | **-0.50 [-0.86, -0.14]** |
+| E9: G on top of θ_A (6 anchors) | 3 | +1.61 [-0.13, +3.03] | **+0.0220 [+0.0018, +0.0431]** | **-2.24 [-2.57, -1.97]** | +0.0014 [-0.0055, +0.0092] | -0.19 [-0.73, +0.45] |
+
+#### G − class-tuned θ, class A train (G's training clips) (13 clips)
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G | 3 | **-2.16 [-4.07, -0.51]** | -0.0054 [-0.0308, +0.0184] | **-6.21 [-8.08, -4.56]** | **-0.0089 [-0.0150, -0.0028]** | +0.16 [-0.11, +0.43] |
+| E7a (6 anchors) | 3 | **-2.27 [-3.43, -1.09]** | -0.0097 [-0.0193, +0.0008] | **-1.96 [-3.13, -0.52]** | -0.0003 [-0.0032, +0.0027] | **-0.63 [-0.88, -0.38]** |
+| E9: G on top of θ_A (6 anchors) | 3 | -0.31 [-1.42, +0.79] | **+0.0092 [+0.0001, +0.0183]** | **-3.95 [-4.97, -3.04]** | +0.0000 [-0.0031, +0.0034] | -0.16 [-0.38, +0.07] |
+
+#### G − class-tuned θ, class B dev (6 clips)
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G | 3 | **-0.97 [-1.85, -0.10]** | +0.0149 [-0.0031, +0.0327] | **-2.87 [-4.64, -1.24]** | -0.0002 [-0.0092, +0.0090] | **+0.11 [+0.05, +0.16]** |
+| E7a (6 anchors) | 3 | **-1.14 [-1.49, -0.68]** | **-0.0098 [-0.0181, -0.0016]** | **+1.95 [+0.29, +3.33]** | +0.0029 [-0.0002, +0.0059] | **-0.30 [-0.39, -0.21]** |
+| E9: G on top of θ_A (6 anchors) | 3 | +0.09 [-0.37, +0.57] | **+0.0094 [+0.0044, +0.0161]** | **-2.79 [-3.72, -1.85]** | +0.0025 [-0.0014, +0.0068] | **+0.03 [+0.00, +0.06]** |
+
+#### G − class-tuned θ, class D dev (6 clips)
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G | 3 | **-3.35 [-6.30, -0.31]** | **-0.0731 [-0.1173, -0.0352]** | **-5.20 [-7.45, -3.12]** | **-0.0844 [-0.1378, -0.0339]** | **-4.30 [-8.74, -0.54]** |
+| E7a (6 anchors) | 3 | **-2.88 [-5.62, -0.23]** | **-0.0531 [-0.0929, -0.0235]** | **-2.77 [-4.17, -1.34]** | **-0.0661 [-0.1224, -0.0177]** | **-4.28 [-8.76, -0.72]** |
+| E9: G on top of θ_A (6 anchors) | 3 | -1.75 [-4.81, +1.49] | **-0.0590 [-0.0994, -0.0241]** | **-3.81 [-7.03, -0.95]** | **-0.0798 [-0.1376, -0.0276]** | **-4.21 [-8.71, -0.44]** |
+
+#### Paired: E9 − E7a (class A dev)
+
+| composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|
+| **+1.99 [+1.30, +2.72]** | **+0.0144 [+0.0001, +0.0300]** | **-1.39 [-1.98, -0.81]** | -0.0034 [-0.0086, +0.0020] | **+0.32 [+0.03, +0.63]** |
+
+
+**Decision (pre-registered rule): "does not add".** On A dev, E9 − θ_A gives SSIMULACRA2 −2.24
+[−2.57, −1.97] (0/3 seeds positive), DISTS +0.0014 (CI spans 0) and XPSNR −0.19 (CI spans 0).
+The confirm split was not used. **By the plan, the learned-`G` line is closed.**
+
+* **`G` again optimises its own loss.** On top of θ it improves LPIPS (+0.022, CI above 0) and
+  `composite` (+1.6) over θ, and pays in SSIMULACRA2, on its training clips too (−3.9). This is
+  the same pattern as P1's `G`, now with the emulator gap closed by the anchors (E7) and with θ as
+  the starting point.
+* **Starting from θ did not combine the two strengths.** Paired against E7a, E9 recovers XPSNR
+  (+0.32) but loses SSIMULACRA2 (−1.39).
+* **Budget:** 156 emulator pairs, plus 156 anchors per seed, plus 45 validation calls per seed.
+
+### Conclusion of the learned-`G` line (P1, E7, E9)
+
+On this black box, a learned pre-compensation `G` does not beat a class-tuned sharpening-only θ
+on any content class.
+1. **P1:** the plain `G` (emulator forward) loses clearly, even on its own training clips.
+2. **E7:** most of that loss is the emulator gap. Anchoring the forward value on the black box
+   closes about 80 % of it.
+3. **E7 and E9:** what remains is that `G` trades the independent judges (SSIMULACRA2, and
+   XPSNR or DISTS) for LPIPS, its training loss. Starting from θ does not change this.
+4. **Cost:** the learned route costs 300–500 black-box calls, against 195 for the θ. That is far
+   beyond an online-platform budget.
+
+This is the negative result for the paper, together with its explanation: emulator exploitation
+first, metric specialisation second.

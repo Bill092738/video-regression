@@ -298,7 +298,11 @@ Bold: the 95 % bootstrap CI over clips excludes 0; n.s.: it does not.
    tier-only on the objective, but not on SSIMULACRA2. In P1's pre-registered test on 77 clips
    it does **not** beat class-tuned sharpening on any content class: it lowers SSIMULACRA2 and
    DISTS and damages graphics and animation. Its gains are in LPIPS, its own training loss.
-   Domain-adaptation rounds did not help either.
+   Domain-adaptation rounds did not help either. Anchoring its forward value on the black box
+   (E7) closes about 80 % of the gap, which shows the emulator was being exploited. Starting `G`
+   from the sharpening θ (E9) still does not beat θ: `G` keeps trading the independent judges for
+   LPIPS, at 300–500 black-box calls ([E7](PROGRESS.md#9-e7-results-a-real-anchored-estimator-for-g),
+   [E9](PROGRESS.md#10-e9-results-a-learned-g-on-top-of-the-class-tuned-θ)).
 
 ### Next steps
 
@@ -318,18 +322,15 @@ compared and what counts as success. In short:
   classes and splits, and one confirmation run. The learned `G` did not beat class-tuned
   sharpening (H1 not confirmed); the content gate was accepted. Class C (natural, flat or dark)
   had a single clip and stays untested.
-* **P1-later, method improvements.** These are now the only route by which a learned `G` could
-  beat the P1 gate:
-  * a real-forward / surrogate-backward estimator for `G`;
+* **P1-later, method improvements.** E7 (real-anchored estimator) and E9 (`G` on top of θ) are
+  done, and the learned-`G` line is closed with a negative result. Remaining:
   * an emulator ensemble or a conservative emulator;
-  * a BO + `G` hybrid;
   * TuRBO and warm-started BO for a small real budget;
   * a common creator recipe as a baseline.
 * **P1, simulator realism:**
   * passthrough below a bitrate cap;
   * AV1 film-grain synthesis;
-  * several renditions;
-  * cross-platform transfer.
+  * several renditions.
 * **P2, real platform and human study:**
   * a platform ladder probe;
   * a real closed loop on own content, with private uploads;
