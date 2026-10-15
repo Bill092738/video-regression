@@ -181,3 +181,18 @@ def test_report_only_class_gets_no_split():
     assert split["c"] == "report" and split["a0"] in classify.SPLITS
     res = {"clips": {n: {"class": cls[n], "split": split[n]} for n in clips}}
     assert classify.select("@C:report", res) == ["c"] and "c" not in classify.select("@*:train", res)
+
+
+def test_fixed_upload_bitrate_is_a_separate_cache_entry(tiny_clip, tmp_path):
+    from test_pipeline import TINY
+
+    from vreg.evaluate import evaluate
+    from vreg.platform import SimulatedPlatform
+
+    plat = SimulatedPlatform(TINY)
+    hi = evaluate("tiny", tiny_clip, {"upscale": 2.0}, plat, tmp_path, use_lpips=False)
+    lo = evaluate("tiny", tiny_clip, {"upscale": 2.0}, plat, tmp_path, use_lpips=False, upload_kbps=100)
+    assert hi.workdir != lo.workdir and lo.workdir.endswith("_u100k")
+    assert lo.upload_kbps < hi.upload_kbps
+    again = evaluate("tiny", tiny_clip, {"upscale": 2.0}, plat, tmp_path, use_lpips=False, upload_kbps=100)
+    assert again.cached and again.metrics == lo.metrics
