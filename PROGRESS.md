@@ -137,7 +137,7 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 | E8 | **Emulator robustness**: an ensemble of `E` with a disagreement penalty; a conservative (COMs-style) `E`; `G`-like perturbations in round-0 data; temporal context (stacked frames) | trust region only vs each option | Emulator PSNR on `G`'s outputs above 30 dB, and domain-adaptation rounds improve instead of degrading |
 | E9 | ✅ **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
 | E10 | **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
-| E11 | **Common creator recipe as a baseline**: lanczos ×2 + mild unsharp, at a fixed upload bitrate | creator recipe vs best θ | Shows what the optimiser adds over standard advice |
+| E11 | ✅ **Common creator recipe as a baseline**: lanczos ×2 + mild unsharp, at a fixed upload bitrate | creator recipe vs best θ | Shows what the optimiser adds over standard advice |
 
 ### P1: simulator realism
 
@@ -960,3 +960,94 @@ on any content class.
 
 This is the negative result for the paper, together with its explanation: emulator exploitation
 first, metric specialisation second.
+
+## 11. E11 results: common creator recipes as a baseline
+
+Plan, pre-registered before the run: [`docs/E11-plan.md`](docs/E11-plan.md).
+* Five fixed recipes, untuned, on all 77 clips with the judges (`scripts/e11.py`); black box
+  `sim:ugc_strict`.
+* The near-lossless default upload (CRF 10, median ≈ 80–140 Mbps at 1440p) is compared with
+  YouTube's recommended 16 Mbps for 1440p.
+
+#### Recipes vs tier-only (CRF 10), every tested clip per class
+
+| class | recipe | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|
+| A (27) | ×2 + default unsharp 5×5 1.0 | **+1.92 [+1.58, +2.26]** | +0.07 [-0.66, +0.68] | **+0.0029 [+0.0016, +0.0045]** | **+0.47 [+0.37, +0.59]** |
+| A (27) | ×2 + mild unsharp 5×5 0.5 | **+1.56 [+1.34, +1.78]** | **+0.44 [+0.08, +0.76]** | **+0.0022 [+0.0013, +0.0031]** | **+0.28 [+0.22, +0.34]** |
+| A (27) | mild recipe at 16 Mbps | +0.09 [-0.23, +0.39] | **-1.47 [-1.88, -1.09]** | **-0.0037 [-0.0048, -0.0027]** | +0.05 [-0.00, +0.10] |
+| A (27) | tier-only at 16 Mbps | **-1.45 [-1.70, -1.22]** | **-1.91 [-2.23, -1.61]** | **-0.0055 [-0.0066, -0.0044]** | **-0.23 [-0.27, -0.19]** |
+| B (25) | ×2 + default unsharp 5×5 1.0 | **+0.80 [+0.47, +1.10]** | **-2.97 [-3.93, -2.00]** | -0.0011 [-0.0029, +0.0005] | **+0.36 [+0.30, +0.42]** |
+| B (25) | ×2 + mild unsharp 5×5 0.5 | **+0.92 [+0.75, +1.08]** | **-1.22 [-1.79, -0.65]** | +0.0003 [-0.0006, +0.0011] | **+0.25 [+0.19, +0.33]** |
+| B (25) | mild recipe at 16 Mbps | **-0.45 [-0.80, -0.13]** | **-2.32 [-2.90, -1.75]** | **-0.0056 [-0.0073, -0.0040]** | +0.00 [-0.07, +0.09] |
+| B (25) | tier-only at 16 Mbps | **-1.46 [-1.76, -1.19]** | **-1.41 [-1.71, -1.11]** | **-0.0065 [-0.0083, -0.0049]** | **-0.26 [-0.31, -0.21]** |
+| D (24) | ×2 + default unsharp 5×5 1.0 | **+1.34 [+0.86, +1.81]** | +0.83 [-0.66, +2.35] | **+0.0023 [+0.0005, +0.0040]** | **+0.48 [+0.35, +0.61]** |
+| D (24) | ×2 + mild unsharp 5×5 0.5 | **+1.21 [+0.93, +1.49]** | **+1.33 [+0.39, +2.50]** | **+0.0019 [+0.0011, +0.0028]** | **+0.37 [+0.27, +0.48]** |
+| D (24) | mild recipe at 16 Mbps | **+0.48 [+0.04, +0.90]** | +0.72 [-0.38, +2.03] | -0.0001 [-0.0014, +0.0011] | **+0.23 [+0.10, +0.38]** |
+| D (24) | tier-only at 16 Mbps | **-0.74 [-1.10, -0.42]** | **-0.62 [-1.11, -0.14]** | **-0.0020 [-0.0030, -0.0011]** | **-0.10 [-0.17, -0.05]** |
+
+#### Q1: does tuning add? Class-tuned θ − recipe, dev + confirm clips (θ never saw them)
+
+| class | θ − recipe | composite | ssimulacra2 | dists | xpsnr | tuning adds? |
+|---|---|---|---|---|---|---|
+| A (14) | θ − ×2 + default unsharp 5×5 1.0 | **+0.25 [+0.12, +0.41]** | +0.04 [-0.09, +0.16] | **+0.0005 [+0.0001, +0.0008]** | +0.01 [-0.01, +0.03] | no (1 up, 0 down) |
+| A (14) | θ − ×2 + mild unsharp 5×5 0.5 | **+0.48 [+0.20, +0.75]** | -0.26 [-0.62, +0.10] | +0.0006 [-0.0001, +0.0014] | **+0.12 [+0.07, +0.17]** | no (1 up, 0 down) |
+| B (12) | θ − ×2 + default unsharp 5×5 1.0 | +0.08 [-0.03, +0.20] | **+0.63 [+0.43, +0.83]** | +0.0002 [-0.0008, +0.0011] | **-0.05 [-0.06, -0.04]** | no (1 up, 1 down) |
+| B (12) | θ − ×2 + mild unsharp 5×5 0.5 | -0.15 [-0.37, +0.06] | **-1.58 [-1.92, -1.22]** | -0.0006 [-0.0016, +0.0002] | **+0.07 [+0.04, +0.10]** | no (1 up, 1 down) |
+| D (12) | θ − ×2 + default unsharp 5×5 1.0 | +0.04 [-0.12, +0.20] | -0.31 [-0.98, +0.26] | +0.0005 [-0.0002, +0.0013] | +0.03 [-0.02, +0.10] | no (0 up, 0 down) |
+| D (12) | θ − ×2 + mild unsharp 5×5 0.5 | +0.10 [-0.57, +0.64] | -1.02 [-2.95, +0.26] | +0.0002 [-0.0021, +0.0023] | +0.12 [-0.06, +0.31] | no (0 up, 0 down) |
+
+* class A θ: unsharp 1.06, size 5
+* class B θ: unsharp 0.85, size 5
+* class D θ: unsharp 1.05, size 5
+
+#### Q2: the recommended upload bitrate (16 Mbps) vs near-lossless (CRF 10), every tested clip
+
+| class | comparison | composite | ssimulacra2 | dists | xpsnr | median upload Mbps |
+|---|---|---|---|---|---|---|
+| A (27) | tier-only at 16 Mbps − tier-only (CRF 10) | **-1.45 [-1.70, -1.22]** | **-1.91 [-2.23, -1.61]** | **-0.0055 [-0.0066, -0.0044]** | **-0.23 [-0.27, -0.19]** | 79 → 17 |
+| A (27) | mild recipe at 16 Mbps − ×2 + mild unsharp 5×5 0.5 | **-1.47 [-1.75, -1.21]** | **-1.92 [-2.25, -1.60]** | **-0.0059 [-0.0072, -0.0046]** | **-0.23 [-0.29, -0.18]** | 96 → 17 |
+| B (25) | tier-only at 16 Mbps − tier-only (CRF 10) | **-1.46 [-1.76, -1.19]** | **-1.41 [-1.71, -1.11]** | **-0.0065 [-0.0083, -0.0049]** | **-0.26 [-0.31, -0.21]** | 122 → 17 |
+| B (25) | mild recipe at 16 Mbps − ×2 + mild unsharp 5×5 0.5 | **-1.37 [-1.67, -1.09]** | **-1.10 [-1.43, -0.79]** | **-0.0059 [-0.0079, -0.0041]** | **-0.25 [-0.30, -0.20]** | 137 → 17 |
+| D (24) | tier-only at 16 Mbps − tier-only (CRF 10) | **-0.74 [-1.10, -0.42]** | **-0.62 [-1.11, -0.14]** | **-0.0020 [-0.0030, -0.0011]** | **-0.10 [-0.17, -0.05]** | 36 → 16 |
+| D (24) | mild recipe at 16 Mbps − ×2 + mild unsharp 5×5 0.5 | **-0.74 [-1.10, -0.43]** | **-0.61 [-0.99, -0.29]** | **-0.0021 [-0.0030, -0.0012]** | **-0.14 [-0.23, -0.07]** | 43 → 17 |
+
+#### Gate with a recipe (exploratory; confirm clips were used in P1)
+
+Recipe for class A chosen on train + dev: **×2 + mild unsharp 5×5 0.5** (3 judges positive over tier-only). Other classes tier-only.
+
+| class | SSIMULACRA2 gate − tier | XPSNR gate − tier |
+|---|---|---|
+| A | +0.25 [-0.24, +0.70] | **+0.19 [+0.14, +0.23]** |
+| B | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] |
+| D | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] |
+
+| judge | gate − P0 global sharpening-only θ | gate − P1 gate (class θ on A) |
+|---|---|---|
+| ssimulacra2 | +1.09 [-0.31, +2.30] | +0.05 [-0.13, +0.26] |
+| dists | +0.0003 [-0.0010, +0.0019] | -0.0004 [-0.0009, +0.0000] |
+| xpsnr | **-0.22 [-0.33, -0.13]** | **-0.05 [-0.08, -0.02]** |
+
+**Recipe gate: accepted** by P1's criteria (every class ≥ tier-only on SSIMULACRA2 and XPSNR: yes; ≥ global θ on 2/3).
+
+
+![E11](docs/img/e11/e11.png)
+
+* **Q1: tuning adds nothing over ffmpeg's default unsharp** (5×5, 1.0), in any class. On A, the
+  tuned θ beats it only on DISTS, by +0.0005 (SSIMULACRA2 +0.04, XPSNR +0.01, CIs spanning 0).
+  GP-BO, with 195 black-box calls, re-discovered the default: θ_A is unsharp 1.06, 5×5.
+* **The mild recipe** (5×5, 0.5) is the only configuration so far that beats tier-only on all
+  three judges in class A (SSIMULACRA2 +0.44, DISTS +0.0022, XPSNR +0.28, every CI above 0).
+  It does the same in class D. On B it still costs SSIMULACRA2 (−1.2).
+* **A gate with the mild recipe on A and tier-only elsewhere is accepted** by P1's criteria on the
+  confirm clips. Against the P1 gate (class-tuned θ on A) it is equal within noise: SSIMULACRA2
+  +0.05, DISTS −0.0004, XPSNR −0.05. **The practical recipe therefore needs no tuning uploads.**
+* **Q2: the upload bitrate matters more than any filter.** Uploading at the recommended 16 Mbps
+  instead of near-lossless costs SSIMULACRA2 −1.9 on A, −1.4 on B and −0.6 on D, with every judge
+  worse. That is more than the best sharpening gains (+0.44). The mild recipe at 16 Mbps is below
+  plain near-lossless tier-only on A.
+* **Caveats.**
+  * In the simulator, the platform re-encodes the upload, so upload quality carries straight
+    through. Whether a real platform accepts and uses an 80–140 Mbps 1440p upload must be
+    checked (E15).
+  * The D result is exploratory: the P1 gate keeps D tier-only, based on its dev data.

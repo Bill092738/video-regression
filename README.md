@@ -288,7 +288,12 @@ Bold: the 95 % bootstrap CI over clips excludes 0; n.s.: it does not.
 3. The full θ hurts graphics and text, so pre-compensation must be content-adaptive. P1 refines
    this: on graphics and animation the grain and colour boost do the damage, and mild sharpening
    alone does not. The content gate that P1 accepts sharpens only natural low-motion content and
-   uses tier-only elsewhere.
+   uses tier-only elsewhere. Tuning adds nothing over a fixed recipe (E11): ffmpeg's default
+   unsharp matches the tuned θ, and a mild unsharp (5×5, 0.5) on natural low-motion content is
+   the only setting that beats tier-only on all three judges. The upload bitrate matters more
+   than any filter: uploading at the recommended 16 Mbps instead of near-lossless costs more
+   SSIMULACRA2 than sharpening gains
+   ([E11](PROGRESS.md#11-e11-results-common-creator-recipes-as-a-baseline)).
 4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`. The `ugc_av1`
    filter gain passes the independent-metric check on average, but it rests on one clip. The
    P1 gate does not transfer either: on `ugc_av1`, sharpening class A costs SSIMULACRA2 on
@@ -326,7 +331,6 @@ compared and what counts as success. In short:
   done, and the learned-`G` line is closed with a negative result. Remaining:
   * an emulator ensemble or a conservative emulator;
   * TuRBO and warm-started BO for a small real budget;
-  * a common creator recipe as a baseline.
 * **P1, simulator realism:**
   * passthrough below a bitrate cap;
   * AV1 film-grain synthesis;
