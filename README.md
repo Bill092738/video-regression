@@ -330,11 +330,15 @@ compared and what counts as success. In short:
 * **P1-later, method improvements.** E7 (real-anchored estimator) and E9 (`G` on top of θ) are
   done, and the learned-`G` line is closed with a negative result. Remaining:
   * an emulator ensemble or a conservative emulator;
-  * TuRBO and warm-started BO for a small real budget;
 * **P1, simulator realism:**
-  * passthrough below a bitrate cap;
   * AV1 film-grain synthesis;
   * several renditions.
+* **Validation budget for a real platform (E10, done):** validate the recipe on class A only,
+  with 8–10 clips that include high-detail ones, as tier-only + recipe (16–20 uploads per
+  platform). Keep tier-only unless the gain is clearly positive. A passthrough rule (E12) can be
+  probed with one 720p clip at 1.9 and 2.5 Mbps
+  ([E10](PROGRESS.md#12-e10-results-reframed-how-many-clips-does-a-per-platform-validation-need),
+  [E12](PROGRESS.md#13-e12-results-a-passthrough-rule-below-a-bitrate-cap)).
 * **P2, real platform and human study:**
   * a platform ladder probe;
   * a real closed loop on own content, with private uploads;

@@ -136,14 +136,14 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 | E7 | ✅ **Real-forward / surrogate-backward estimator** for `G`: `y = y_real + E(x) − stopgrad(E(x))`, following SelfC and SCALED | current `G` (emulator forward) vs this estimator | No collapse without a trust region; the gain on dense texture (park_joy, ducks) moves closer to GP-BO θ |
 | E8 | **Emulator robustness**: an ensemble of `E` with a disagreement penalty; a conservative (COMs-style) `E`; `G`-like perturbations in round-0 data; temporal context (stacked frames) | trust region only vs each option | Emulator PSNR on `G`'s outputs above 30 dB, and domain-adaptation rounds improve instead of degrading |
 | E9 | ✅ **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
-| E10 | **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
+| E10 | ✅ (reframed as the validation budget, §12) **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
 | E11 | ✅ **Common creator recipe as a baseline**: lanczos ×2 + mild unsharp, at a fixed upload bitrate | creator recipe vs best θ | Shows what the optimiser adds over standard advice |
 
 ### P1: simulator realism
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
-| E12 | Add a **passthrough branch below a bitrate cap** (Bilibili-style "no second encode"); make upload bitrate part of θ | old vs new profile; does the optimiser find the passthrough region? | The optimiser discovers the bitrate threshold when it exists |
+| E12 | ✅ (§13) Add a **passthrough branch below a bitrate cap** (Bilibili-style "no second encode"); make upload bitrate part of θ | old vs new profile; does the optimiser find the passthrough region? | The optimiser discovers the bitrate threshold when it exists |
 | E13 | Add **AV1 film-grain synthesis** (denoise + grain table) to `ugc_av1`, and **several renditions** (480p/720p/1080p, weighted) | single 720p rendition vs multi-rendition objective | θ that is robust across renditions |
 | E14 | ✅ (§8, §8b) **Cross-platform transfer**: apply the `ugc_strict` θ to `ugc_av1` and the reverse | transferred vs native θ | Quantifies how much tuning per platform matters |
 
@@ -1051,3 +1051,126 @@ Recipe for class A chosen on train + dev: **×2 + mild unsharp 5×5 0.5** (3 jud
     through. Whether a real platform accepts and uses an 80–140 Mbps 1440p upload must be
     checked (E15).
   * The D result is exploratory: the P1 gate keeps D tier-only, based on its dev data.
+
+## 12. E10 results (reframed): how many clips does a per-platform validation need?
+
+Plan, pre-registered before the run: [`docs/E10-plan.md`](docs/E10-plan.md).
+* The backlog's E10 (tuner budgets, TuRBO, warm start) was reframed after E11 showed that
+  tuning adds nothing over a fixed recipe. An online platform needs only a validation: whether
+  to switch the recipe on.
+* Decision rule: switch the recipe on iff its mean gain over tier-only on the validation clips
+  is ≥ 0 on both SSIMULACRA2 and XPSNR. The truth is that rule on all of a class's clips.
+* 10,000 subsets per size, on `sim:ugc_strict` (E11 data) and `sim:ugc_av1` (run for E10:
+  tier-only and both recipes on all clips). "hard-half" takes ⌈n/2⌉ clips from the class's top
+  third by SI, which is known before any upload (`scripts/e10.py`).
+
+| platform | class | recipe | truth (all clips) | mean gain SSIMULACRA2 / XPSNR | strategy | n=2 | n=3 | n=4 | n=6 | n=8 | n=10 | n=12 | n=16 | n for ≤ 10 % | n for ≤ 5 % |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ugc_strict | A | mild unsharp 5×5 0.5 | on | +0.44 / +0.28 | random | 23 % | 16 % | 16 % | 12 % | 7 % | 3 % | 1 % | 0 % | 8 | 10 |
+| ugc_strict | A | mild unsharp 5×5 0.5 | on | +0.44 / +0.28 | hard-half | 21 % | 11 % | 15 % | 10 % | 6 % | 2 % | 1 % | 0 % | 6 | 10 |
+| ugc_strict | A | default unsharp 5×5 1.0 | on | +0.07 / +0.47 | random | 40 % | 40 % | 39 % | 41 % | 42 % | 42 % | 43 % | 44 % | > 16 | > 16 |
+| ugc_strict | A | default unsharp 5×5 1.0 | on | +0.07 / +0.47 | hard-half | 35 % | 43 % | 39 % | 43 % | 45 % | 46 % | 48 % | 50 % | > 16 | > 16 |
+| ugc_strict | B | mild unsharp 5×5 0.5 | off | -1.22 / +0.25 | random | 12 % | 6 % | 4 % | 1 % | 0 % | 0 % | 0 % | 0 % | 3 | 4 |
+| ugc_strict | B | mild unsharp 5×5 0.5 | off | -1.22 / +0.25 | hard-half | 6 % | 2 % | 1 % | 0 % | 0 % | 0 % | 0 % | 0 % | 2 | 3 |
+| ugc_strict | B | default unsharp 5×5 1.0 | off | -2.97 / +0.36 | random | 7 % | 1 % | 0 % | 0 % | 0 % | 0 % | 0 % | 0 % | 2 | 3 |
+| ugc_strict | B | default unsharp 5×5 1.0 | off | -2.97 / +0.36 | hard-half | 3 % | 0 % | 0 % | 0 % | 0 % | 0 % | 0 % | 0 % | 2 | 2 |
+| ugc_strict | D | mild unsharp 5×5 0.5 | on | +1.33 / +0.37 | random | 19 % | 16 % | 11 % | 6 % | 2 % | 1 % | 0 % | 0 % | 6 | 8 |
+| ugc_strict | D | mild unsharp 5×5 0.5 | on | +1.33 / +0.37 | hard-half | 23 % | 20 % | 14 % | 6 % | 2 % | 0 % | 0 % | 0 % | 6 | 8 |
+| ugc_strict | D | default unsharp 5×5 1.0 | on | +0.83 / +0.48 | random | 38 % | 34 % | 31 % | 29 % | 23 % | 19 % | 15 % | 7 % | 16 | > 16 |
+| ugc_strict | D | default unsharp 5×5 1.0 | on | +0.83 / +0.48 | hard-half | 49 % | 40 % | 36 % | 30 % | 27 % | 21 % | 14 % | 0 % | 16 | 16 |
+| ugc_av1 | A | mild unsharp 5×5 0.5 | off | -0.61 / +0.20 | random | 66 % | 53 % | 46 % | 38 % | 30 % | 22 % | 20 % | 11 % | > 16 | > 16 |
+| ugc_av1 | A | mild unsharp 5×5 0.5 | off | -0.61 / +0.20 | hard-half | 66 % | 49 % | 42 % | 36 % | 29 % | 20 % | 16 % | 4 % | 16 | 16 |
+| ugc_av1 | A | default unsharp 5×5 1.0 | off | -1.27 / +0.31 | random | 53 % | 48 % | 43 % | 32 % | 22 % | 17 % | 12 % | 7 % | 16 | > 16 |
+| ugc_av1 | A | default unsharp 5×5 1.0 | off | -1.27 / +0.31 | hard-half | 48 % | 33 % | 34 % | 24 % | 15 % | 8 % | 4 % | 0 % | 10 | 12 |
+| ugc_av1 | B | mild unsharp 5×5 0.5 | off | -1.63 / +0.19 | random | 31 % | 30 % | 29 % | 28 % | 26 % | 21 % | 16 % | 8 % | 16 | > 16 |
+| ugc_av1 | B | mild unsharp 5×5 0.5 | off | -1.63 / +0.19 | hard-half | 34 % | 40 % | 37 % | 38 % | 32 % | 25 % | 17 % | 0 % | 16 | 16 |
+| ugc_av1 | B | default unsharp 5×5 1.0 | off | -5.16 / +0.02 | random | 19 % | 16 % | 14 % | 8 % | 4 % | 2 % | 1 % | 0 % | 6 | 8 |
+| ugc_av1 | B | default unsharp 5×5 1.0 | off | -5.16 / +0.02 | hard-half | 17 % | 16 % | 13 % | 5 % | 2 % | 1 % | 0 % | 0 % | 6 | 6 |
+| ugc_av1 | D | mild unsharp 5×5 0.5 | on | +0.78 / +0.31 | random | 34 % | 34 % | 32 % | 29 % | 25 % | 19 % | 15 % | 8 % | 16 | > 16 |
+| ugc_av1 | D | mild unsharp 5×5 0.5 | on | +0.78 / +0.31 | hard-half | 31 % | 19 % | 21 % | 15 % | 9 % | 4 % | 1 % | 0 % | 8 | 10 |
+| ugc_av1 | D | default unsharp 5×5 1.0 | on | +0.02 / +0.36 | random | 44 % | 47 % | 48 % | 48 % | 49 % | 50 % | 49 % | 50 % | > 16 | > 16 |
+| ugc_av1 | D | default unsharp 5×5 1.0 | on | +0.02 / +0.36 | hard-half | 47 % | 45 % | 45 % | 45 % | 45 % | 43 % | 40 % | 32 % | > 16 | > 16 |
+
+![E10](docs/img/e10/e10.png)
+
+* **The two platforms disagree on class A,** which is why validation is needed at all. Mild
+  sharpening is on for A on ugc_strict (+0.44 SSIMULACRA2) and off on ugc_av1 (−0.61). D is on
+  for both, and B is off for both.
+* **Clear effects need few clips.** Two or three are enough when sharpening clearly hurts (B on
+  ugc_strict), and 6–8 when it clearly helps (A, D on ugc_strict).
+* **Harm concentrated in a few clips needs many clips,** unless they are picked deliberately. On
+  ugc_av1 class A, a few rate-starved clips carry the harm. Random validation still errs 22 % of
+  the time at n = 10. With hard-half selection, the default recipe reaches ≤ 10 % error at n = 10
+  and the mild one at n = 16.
+* **When the true effect is ≈ 0,** e.g. the default unsharp on ugc_strict A (+0.07) or on
+  ugc_av1 D (+0.02), no n decides reliably. The decision is also inconsequential there.
+* **Implied upload budget.** For E15/E16 the recommendation is to validate the recipe on class A
+  only, with **8–10 clips chosen hard-half**, as tier-only + recipe: 16–20 uploads per platform.
+  Keep tier-only unless the mean gain is clearly positive. A wrong "off" costs at most the small
+  gain (≈ +0.4 SSIMULACRA2); a wrong "on" can cost a clip −25 (§8).
+
+## 13. E12 results: a passthrough rule below a bitrate cap
+
+Plan, pre-registered before the run and amended before it after a smoke test:
+[`docs/E12-plan.md`](docs/E12-plan.md).
+* New profile `sim:ugc_passthrough`: `ugc_strict` plus an invented rule. H.264 uploads at ≤ 720p
+  and ≤ 2000 kbps (actual average) are served unchanged.
+* GP-BO over upscale × unsharp × upload bitrate (300–80,000 kbps, log scale), 30 trials, 2 seeds,
+  on 3 class A + 3 class B train clips; then fixed configurations on the A and B dev clips
+  (`scripts/e12.py`).
+
+#### Q1: discovery by GP-BO (30 trials, composite on 3 A + 3 B train clips)
+
+| seed | best composite | best θ | in passthrough region | first passthrough trial within 1 % of the best | passthrough share of trials |
+|---|---|---|---|---|---|
+| 0 | 39.05 | ×2, unsharp 1.03, 80000 kbps | no | – | 0 % |
+| 1 | 39.06 | ×2, unsharp 1.01, 80000 kbps | no | – | 3 % |
+
+#### Q2: every configuration vs tier-only, dev clips
+
+| class | configuration | composite | ssimulacra2 | dists | xpsnr | median upload kbps | served |
+|---|---|---|---|---|---|---|---|
+| A (7) | ×2 + mild unsharp, CRF 10 | **+1.67 [+1.39, +1.98]** | **+0.37 [+0.00, +0.67]** | +0.0008 [-0.0003, +0.0021] | **+0.29 [+0.20, +0.40]** | 82750 | 0/7 served unchanged |
+| A (7) | ×1 at 1900 kbps (under the cap) | -4.74 [-12.71, +0.48] | -6.44 [-21.71, +4.18] | -0.0069 [-0.0249, +0.0051] | -0.31 [-1.44, +0.56] | 1654 | 6/7 served unchanged |
+| A (7) | ×1 + mild unsharp at 1900 kbps | -4.37 [-11.70, +0.39] | -10.65 [-25.08, +0.13] | -0.0084 [-0.0257, +0.0033] | -0.34 [-1.41, +0.47] | 1694 | 6/7 served unchanged |
+| A (7) | ×1 at 2500 kbps (over the cap) | **-10.57 [-15.94, -6.76]** | **-18.75 [-28.83, -10.87]** | **-0.0253 [-0.0363, -0.0157]** | **-1.72 [-2.46, -1.03]** | 2259 | 0/7 served unchanged |
+| A (7) | ×2 at 16 Mbps | **-1.28 [-1.69, -0.87]** | **-1.50 [-2.13, -0.86]** | **-0.0049 [-0.0070, -0.0029]** | **-0.19 [-0.23, -0.15]** | 17400 | 0/7 served unchanged |
+| A (7) | GP-BO best, seed 0 (×2, unsharp 1.03, 80000 kbps) | **+1.79 [+1.37, +2.18]** | -0.27 [-1.11, +0.52] | -0.0000 [-0.0015, +0.0015] | **+0.39 [+0.29, +0.50]** | 94551 | 0/7 served unchanged |
+| A (7) | GP-BO best, seed 1 (×2, unsharp 1.01, 80000 kbps) | **+1.86 [+1.45, +2.21]** | -0.13 [-0.83, +0.54] | +0.0005 [-0.0010, +0.0019] | **+0.40 [+0.30, +0.50]** | 94255 | 0/7 served unchanged |
+| B (6) | ×2 + mild unsharp, CRF 10 | **+0.99 [+0.54, +1.40]** | **-1.12 [-1.97, -0.23]** | +0.0008 [-0.0010, +0.0024] | **+0.23 [+0.16, +0.29]** | 155582 | 0/6 served unchanged |
+| B (6) | ×1 at 1900 kbps (under the cap) | **-16.02 [-21.69, -9.92]** | **-26.33 [-36.51, -15.93]** | **-0.0475 [-0.0702, -0.0240]** | **-2.21 [-3.16, -1.19]** | 2020 | 2/6 served unchanged |
+| B (6) | ×1 + mild unsharp at 1900 kbps | **-12.14 [-17.17, -6.84]** | **-28.11 [-37.01, -19.01]** | **-0.0398 [-0.0577, -0.0209]** | **-1.73 [-2.61, -0.81]** | 2011 | 3/6 served unchanged |
+| B (6) | ×1 at 2500 kbps (over the cap) | **-17.17 [-20.27, -13.74]** | **-29.09 [-33.58, -24.76]** | **-0.0525 [-0.0643, -0.0414]** | **-2.29 [-2.90, -1.64]** | 2677 | 0/6 served unchanged |
+| B (6) | ×2 at 16 Mbps | **-1.41 [-1.73, -1.09]** | **-1.20 [-1.95, -0.45]** | **-0.0069 [-0.0089, -0.0049]** | **-0.24 [-0.28, -0.21]** | 17319 | 0/6 served unchanged |
+| B (6) | GP-BO best, seed 0 (×2, unsharp 1.03, 80000 kbps) | **+0.90 [+0.33, +1.43]** | **-3.66 [-4.40, -2.46]** | -0.0007 [-0.0030, +0.0015] | **+0.35 [+0.25, +0.45]** | 94847 | 0/6 served unchanged |
+| B (6) | GP-BO best, seed 1 (×2, unsharp 1.01, 80000 kbps) | **+0.84 [+0.18, +1.42]** | **-3.77 [-4.67, -2.52]** | -0.0007 [-0.0028, +0.0015] | **+0.35 [+0.25, +0.45]** | 94291 | 0/6 served unchanged |
+
+#### Q3: the cliff, ×1 at 1900 kbps (served) − ×1 at 2500 kbps (re-encoded)
+
+| class | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|
+| A (7) | **+5.83 [+2.95, +7.94]** | **+12.31 [+6.63, +16.46]** | **+0.0185 [+0.0095, +0.0248]** | **+1.41 [+0.71, +2.10]** |
+| B (6) | +1.15 [-1.87, +4.29] | +2.76 [-3.53, +9.19] | +0.0051 [-0.0073, +0.0175] | +0.08 [-0.32, +0.53] |
+
+
+![E12 search](docs/img/e12/e12_search.png)
+
+* **The cliff is real.** At ×1, an upload under the cap that is served unchanged beats one just
+  over it that is re-encoded, by +12.3 SSIMULACRA2 on A (CI above 0). On B the gap is smaller and
+  not significant, because only 2–3 of 6 high-motion uploads stayed under the cap.
+* **But in this simulator the passthrough route is not worth taking.** On A, ×1 at 1.9 Mbps
+  served unchanged is still below the normal 1440p route (SSIMULACRA2 −6.4, CI spanning 0), and
+  on B it is far below (−26). The 1440p HEVC tier at the same 2000 kbps budget, after mild
+  denoise, beats a 720p x264-veryfast upload at 1.9 Mbps.
+* **GP-BO's answer is therefore right.** Both seeds converge on ×2, unsharp ≈ 1.0 and the highest
+  upload bitrate, i.e. tier-only with the default unsharp, as in P1 and E11. But it sampled the
+  passthrough region in only 0–1 of 30 trials, so E12 cannot show that it would find the rule if
+  passthrough paid off.
+* **The upload bitrate result of E11 is reproduced:** 16 Mbps instead of near-lossless costs
+  SSIMULACRA2 −1.5 on A and −1.2 on B.
+* **Caveats.**
+  * The rule and its cap are invented.
+  * The uploader's encoder is x264 veryfast. A slow or two-pass encode would narrow the gap to the
+    1440p route, but the −6 to −26 gap is large.
+  * For E15 the practical point is that one probe pair, the same clip at 1.9 and 2.5 Mbps at
+    720p, tells whether a platform has such a rule.
