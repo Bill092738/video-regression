@@ -54,6 +54,9 @@ class PlatformProfile:
     playback_height: int
     tiers: tuple[Tier, ...]  # sorted by min_upload_height descending
     notes: str = ""
+    # serve an H.264 upload of at most playback_height and at most this average bitrate unchanged
+    # (no ingest denoise, no re-encode); None = always re-encode (E12)
+    passthrough_max_kbps: int | None = None
 
     def tier_for(self, upload_height: int) -> Tier:
         for t in self.tiers:
@@ -74,6 +77,19 @@ PROFILES: dict[str, PlatformProfile] = {
             Tier(0, "libx264", crf=27, maxrate_kbps=1200, denoise="3:3:8:8"),
         ),
         notes="bilibili-like: strong ingest NR, tight caps",
+    ),
+    # ugc_strict plus a passthrough rule: small H.264 uploads at the served height are not re-encoded
+    # (community claims about some platforms; invented threshold, E12)
+    "ugc_passthrough": PlatformProfile(
+        name="ugc_passthrough",
+        playback_height=720,
+        tiers=(
+            Tier(1440, "libx265", crf=26, maxrate_kbps=2000, denoise="1.5:1.5:4:4", preset="fast"),
+            Tier(1080, "libx264", crf=25, maxrate_kbps=1600, denoise="2:2:6:6"),
+            Tier(0, "libx264", crf=27, maxrate_kbps=1200, denoise="3:3:8:8"),
+        ),
+        notes="ugc_strict + passthrough for H.264 <= 720p and <= 2000 kbps",
+        passthrough_max_kbps=2000,
     ),
     # Milder platform that reserves AV1 for high resolution uploads.
     "ugc_av1": PlatformProfile(
@@ -136,6 +152,13 @@ class SimulatedPlatform:
             return out
 
         info = ff.probe(upload)
+        cap = self.profile.passthrough_max_kbps
+        if cap and info.codec == "h264" and info.height <= self.profile.playback_height and info.bitrate <= cap * 1000:
+            ff.run(["-i", str(upload), "-an", "-c:v", "copy", str(out)])  # served as uploaded
+            if cached:
+                self.cache_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(out, cached)
+            return out
         tier = self.profile.tier_for(info.height)
         ph = self.profile.playback_height
         filters = []

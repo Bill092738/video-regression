@@ -41,22 +41,29 @@ _spec.loader.exec_module(p1)
 bootstrap, gains, fmt = p1.bootstrap, p1.gains, p1.fmt
 
 
-def run() -> None:
-    plat = make_platform("sim:ugc_strict")
+def results_file(platform: str = "sim:ugc_strict") -> Path:
+    return OUT if platform == "sim:ugc_strict" else OUT.with_name(f"results_{platform.split(':')[-1]}.json")
+
+
+def run(platform: str = "sim:ugc_strict", recipes=tuple(RECIPES)) -> None:
+    plat = make_platform(platform)
     work = cache_root(plat)
+    out = results_file(platform)
     names = list(classify.load()["clips"])
     clips = content.ensure_clips(names, content.CLIPS_DIR)
-    res = json.loads(OUT.read_text()) if OUT.exists() else {}
-    OUT.parent.mkdir(parents=True, exist_ok=True)
+    res = json.loads(out.read_text()) if out.exists() else {}
+    out.parent.mkdir(parents=True, exist_ok=True)
     for clip, src in clips.items():
         row = res.setdefault(clip, {})
-        for rid, (params, kbps) in RECIPES.items():
+        for rid in recipes:
+            params, kbps = RECIPES[rid]
             if rid in row and all(j in row[rid] for j in JUDGES):
                 continue
             r = evaluate(clip, src, params, plat, work, judges=metrics.JUDGE_METRICS, upload_kbps=kbps)
             row[rid] = r.metrics | {"upload_kbps": r.upload_kbps}
-        OUT.write_text(json.dumps(res, indent=2))
-        print(f"[e11] {clip:22s} " + " ".join(f"{rid}={row[rid]['ssimulacra2']:.1f}" for rid in RECIPES), flush=True)
+        out.write_text(json.dumps(res, indent=2))
+        print(f"[e11 {platform}] {clip:22s} " + " ".join(f"{rid}={row[rid]['ssimulacra2']:.1f}" for rid in recipes),
+              flush=True)
 
 
 def tables() -> None:
@@ -148,4 +155,14 @@ def load_theta(k: str) -> dict | None:
 
 
 if __name__ == "__main__":
-    {"run": run, "tables": tables}[sys.argv[1] if len(sys.argv) > 1 else "tables"]()
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", nargs="?", default="tables", choices=["run", "tables"])
+    ap.add_argument("--platform", default="sim:ugc_strict")
+    ap.add_argument("--recipes", default=",".join(RECIPES))
+    a = ap.parse_args()
+    if a.cmd == "run":
+        run(a.platform, tuple(a.recipes.split(",")))
+    else:
+        tables()

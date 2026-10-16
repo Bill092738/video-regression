@@ -37,7 +37,7 @@ x264 veryfast at the fixed bitrate (as in E11).
 * the best θ of each seed;
 * `tier` (×2, CRF 10) and `r_mild` (×2 + unsharp 0.5, CRF 10), from E11;
 * `pass` (×1 at 1900 kbps, under the cap) and `pass_mild` (the same + unsharp 0.5);
-* `over` (×1 at 2100 kbps, just over the cap): shows the cliff;
+* `over` (×1 at 2500 kbps, over the cap): shows the cliff (see the amendment below);
 * `tier_16m` (×2 at 16 Mbps).
 
 ## Questions
@@ -50,3 +50,14 @@ x264 veryfast at the fixed bitrate (as in E11).
 3. **The cliff:** `pass` − `over`.
 
 Descriptive; it changes no earlier verdict.
+
+## Amendment (before any E12 run)
+
+A smoke test on vidyo1_2 showed that x264 undershoots its target on easy content. A 2100 kbps
+upload came out at 1888 kbps, so the platform served it unchanged. Forcing CBR (`nal-hrd=cbr`)
+still gave 1989 kbps in MP4. Therefore:
+* `over` targets 2500 kbps instead of 2100;
+* the tables decide "served unchanged" vs "re-encoded" from each upload's **actual** average
+  bitrate (≤ 2000 kbps at ≤ 720p), clip by clip, and report how many clips took each route.
+
+The search is unchanged: the black box always sees the actual bitrate.
