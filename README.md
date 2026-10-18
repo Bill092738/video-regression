@@ -37,12 +37,19 @@ Two optimisation routes are implemented, matching section 3 of the idea:
   adaptive** platform pipeline: ladder choice, ingest filtering, rate control and the served
   rendition. It runs in a closed loop with a small real-upload budget, and reports how much
   playback quality is recovered **beyond** the tier trick.
-* **Current direction (after P1):** P0 confirmed only the tier gain. P1 then tested a
-  **content-scoped** claim, with pre-registered classes, splits and decision rules
-  ([`docs/P1-plan.md`](docs/P1-plan.md)): for natural low-motion content, does a learned `G` beat
-  class-tuned sharpening? **It does not.** On this black box, the gain beyond the tier trick that
-  survives the independent judges comes from simple sharpening on natural low-motion content,
-  switched off elsewhere by a content gate ([P1 results](PROGRESS.md#7-p1-results)).
+* **Current state (after E12):**
+  * **P0** confirmed only the tier gain.
+  * **P1** tested a **content-scoped** claim, with pre-registered classes, splits and decision
+    rules ([`docs/P1-plan.md`](docs/P1-plan.md)): on natural low-motion content, does a learned `G`
+    beat class-tuned sharpening? **It does not.** The follow-ups explain why: an exploited
+    emulator (E7) and metric specialisation (E9).
+  * **E11:** what an uploader can use needs no tuning. Upload near-lossless at the higher tier,
+    and add a mild unsharp only on natural low-motion content. The upload bitrate matters more
+    than any filter.
+  * **E14:** the recipe depends on the platform's rate headroom, so each real platform needs a
+    short validation. **E10:** about 20 uploads decide it ([protocol](docs/E15-protocol.md)).
+  * **Next:** that real-platform validation, and a small viewer study
+    ([`docs/E17-plan.md`](docs/E17-plan.md)).
 
   The survey, the overlap check and the license notes for reusable code are in
   [`docs/related-work.md`](docs/related-work.md). The updated direction is in
@@ -360,14 +367,17 @@ compared and what counts as success. In short:
 
 ```
 src/vreg/       ff.py content.py features.py classify.py platform.py precomp.py metrics.py evaluate.py
-                optimize.py rescore.py report.py cli.py
+                optimize.py rescore.py report.py online.py cli.py
 src/vreg/surrogate/  models.py loop.py
 scripts/        setup_env.sh run_experiments.sh run_p0.sh p0_tables.py run_p1.sh p1_tables.py
-                make_screen_clips.py
+                make_screen_clips.py run_e7.sh e7_tables.py run_e9.sh e9_tables.py e10.py e11.py e12.py
+                e17_prepare.py e17_page.html e17_analyze.py reproduce_tables.sh check_progress_tables.py
 tests/          tiny-clip unit tests (run in GitHub Actions)
 docs/img/       figures used in this README
 docs/related-work.md  prior work, overlap check, reusable code and licenses
-docs/P0-plan.md, docs/P1-plan.md  execution plans (both done)
+docs/P0-plan.md, docs/P1-plan.md, docs/E7..E17-plan.md  pre-registered plans (E17 not run yet)
+docs/E15-protocol.md, docs/e15_protocol.json  the minimal real-platform validation (23 uploads)
+docs/CREDITS.md third-party test material and its terms
 docs/p1/        P1 clip manifest (licenses), features, frozen classes and splits, pre-E23 decisions
 idea.md         project idea and direction (updated after the prior-work review)
 PROGRESS.md     what is done, what the results show, experiment backlog

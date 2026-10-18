@@ -99,6 +99,29 @@ A negative result is also useful: if no class beats sharpening, the uploader's g
 tier trick is plain sharpening, and a learned `G` is not worth its cost. The plan is
 [`docs/P1-plan.md`](docs/P1-plan.md).
 
+### 3.2 Outcome after P1 and the follow-ups (E7–E14)
+
+All on simulated platforms (details in `PROGRESS.md` §7–§13).
+
+* **The content-scoped claim was not confirmed.** On the pre-registered class (natural, low motion),
+  the learned `G` does not beat class-tuned sharpening on the held-out clips (P1, H1).
+* **Why `G` loses, and why it is not just too little data:**
+  * it loses even on its own training clips;
+  * most of the gap is the emulator being exploited: anchoring the forward value on the black box
+    closes about 80 % of it (E7);
+  * the rest is metric specialisation: `G` trades the independent judges for LPIPS, its training
+    loss, even when it starts from the tuned sharpening (E9).
+  * The learned route also costs 300–500 black-box calls, i.e. uploads.
+* **What an uploader can use needs no tuning at all.**
+  * Upload at the higher tier and near-lossless. The upload bitrate matters more than any filter
+    (E11).
+  * Add a mild unsharp only on natural low-motion content. ffmpeg's default unsharp already matches
+    the tuned θ (E11).
+* **The recipe is platform-dependent** through the platform's rate headroom (E14). So each real
+  platform needs a short validation; about 20 uploads decide it (E10, `docs/E15-protocol.md`).
+* **What remains open:** real platforms (E15/E16), a viewer study (E17), longer content and the
+  untested flat/dark class.
+
 ## 4. Approach
 
 ### 4.1 Black-box search over an interpretable θ
@@ -124,11 +147,14 @@ which takes minutes to hours. A sample-efficient search is therefore needed.
   * the real-forward / surrogate-backward estimator
     `y = y_real + E(x) − stopgrad(E(x))`, so that `G` only ever sees real outputs in the forward
     pass.
+* Status: the trust region and the real-anchored estimator (E7, a once-per-phase variant of the
+  estimator above) were tested. The ensemble and the conservative emulator (E8) were not pursued
+  once the learned-`G` line was closed (§3.2).
 
 ### 4.3 Hybrid
 
 Search the discrete and global knobs (tier, grain level, colour) with BO. Learn `G` for local
-detail on top, conditioned on the chosen tier.
+detail on top, conditioned on the chosen tier. Status: tested as E9, with `G` on top of the tuned sharpening; it does not add to it.
 
 ## 5. Search space (the "levers")
 
@@ -176,6 +202,9 @@ encoder behaves:
 * Use only third-party code whose license allows the intended use. For example, prefer the MIT
   BoTorch TuRBO tutorial over the non-commercial Uber TuRBO repository, and avoid non-commercial
   IQA toolkits as core dependencies. See `docs/related-work.md`.
+* The code is Apache-2.0 (`LICENSE`). Third-party test sequences keep their own terms
+  (`docs/CREDITS.md`); several are for research use only and must never be uploaded to a platform.
+  The online protocol uses only sequences without restrictions.
 
 ## Original notes (summary of the first version)
 
