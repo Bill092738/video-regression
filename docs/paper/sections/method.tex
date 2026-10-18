@@ -71,6 +71,37 @@ real black box; their real playback is added to the emulator's data for the next
 adaptation), and the emulator's PSNR against the real playback is logged as the measured
 sim-to-real gap.
 
+\paragraph{Real-anchored estimator.}
+\label{sec:anchored}
+To test whether $\Gt$ fails because it exploits the emulator (\cref{sec:emulator-theory}), we also
+train it with a forward value anchored on the black box. Training is split into $A$ phases. At the
+start of phase $k$, the current $G_k$ is applied to every training clip and sent once through the
+black box, giving $y^{\text{real}}_k=\fp(G_k(x))$, and the offset
+$\Delta_k = y^{\text{real}}_k - \Em(G_k(x))$ is stored. During the phase the loss of \cref{eq:gloss}
+is evaluated on
+\begin{equation}
+  \hat y = \Em(\Gt(x)) + \sg(\Delta_k),
+  \label{eq:anchored}
+\end{equation}
+which equals the black box's output at the anchor, adds the emulator's predicted change away from
+it, and back-propagates the emulator's gradient. This is the straight-through estimator
+$y^{\text{real}} + \Em(x) - \sg(\Em(x))$~\cite{bengio2013estimating,tian2021self,pesnel2026scaled} with the real output refreshed once per
+phase; a per-step refresh would cost one upload per clip and step. Each anchor costs one black-box
+call per training clip.
+
+\paragraph{Pre-compensation on top of a tuned configuration.}
+To ask whether $\Gt$ can add to a tuned interpretable configuration $\theta^\ast$ rather than compete
+with it, we move $\theta^\ast$ into the channel: the upload is $\theta^\ast(\Gt(x))$, a new emulator
+of $\fp\circ\theta^\ast$ is trained, and $\Gt$ is trained with the anchored estimator. At
+$\Gt=\mathrm{id}$ the result is exactly $\theta^\ast$'s, so any change is what $\Gt$ adds.
+
+\subsection{Fixed recipes and upload bitrate}
+\label{sec:recipes}
+As baselines that need no tuning, and no uploads to tune, we evaluate fixed recipes: $\times2$ with
+FFmpeg's default unsharp ($5\times5$, amount 1.0), $\times2$ with a mild unsharp ($5\times5$, 0.5),
+and both the tier-only upload and the mild recipe encoded at a fixed 16\,Mb/s (x264, rate-capped)
+instead of near-losslessly.
+
 \subsection{Metrics}
 \label{sec:metrics}
 

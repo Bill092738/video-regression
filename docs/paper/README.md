@@ -32,11 +32,15 @@ figures inside it. Edits made on Overleaf have to be copied back into this folde
 ## Editing conventions
 
 * `\todo{...}` (red): text or a decision that is still missing.
-* `\pending{...}` (orange): a result that depends on an experiment that has not run yet (P1 E20–E23,
-  P2).
+* `\pending{...}` (orange): a result that depends on an experiment that has not run yet. Since the
+  merge of P1 and the follow-ups (E7–E14), only the real-platform part (P2: E15–E17) is pending.
 * **Every number in `results.tex` and `appendix.tex` must come from `PROGRESS.md`**, which is
-  generated from the run outputs (`scripts/p0_tables.py`, `scripts/p1_tables.py`). If a number
-  changes there, change it here. Do not round or "improve" numbers by hand.
+  generated from the run outputs (`scripts/p0_tables.py`, `scripts/p1_tables.py`, `e7_tables.py`,
+  `e9_tables.py`, `e10.py`, `e11.py`, `e12.py`; `scripts/reproduce_tables.sh` regenerates all of them
+  and checks `PROGRESS.md`). If a number changes there, change it here. Do not round or "improve"
+  numbers by hand.
+* The abstract is close to arXiv's 1920-character limit (about 1830 now, without the P2 sentence):
+  keep the P2 sentence short or trim elsewhere.
 * Claims about other papers (`related.tex`) must be checked against the paper itself, not against a
   summary.
 * Use `\cref{...}` for references to sections, tables and figures, and `~\cite{...}` for citations.

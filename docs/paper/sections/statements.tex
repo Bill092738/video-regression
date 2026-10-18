@@ -1,8 +1,12 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-\todo{Write last, after P1 and P2. Two or three sentences: what was asked, what the evidence says,
-what an uploader should do.}
+We asked whether an uploader can recover video quality beyond the resolution tier trick by
+optimising a pre-compensation against a black-box platform. On simulated platforms, and judged by
+metrics the optimiser never saw, the answer is: only a little, and not with a learned network. The
+tier choice and a near-lossless upload carry most of the benefit, an untuned mild sharpening of natural
+low-motion content adds a small, platform-dependent gain, and checking that gain on a platform costs
+about 20 uploads. \pending{one sentence on the real-platform results.}
 
 \section*{Ethics and Terms of Service}
 Real-platform experiments use only the authors' own accounts and content, uploaded as private or
@@ -14,8 +18,8 @@ additional resources. \todo{name the platform(s) and the terms that apply once P
 The implementation, the clip manifest with per-clip sources and licenses, the content features,
 the frozen class and split assignments, and the scripts that produce every table are available at
 \todo{repository URL and the commit or release tag used for this version}. Third-party video is
-not redistributed; the manifest lists where to obtain each clip.
-\todo{add a LICENSE file to the repository before release.}
+not redistributed; the manifest lists where to obtain each clip. The code is released under the
+Apache License 2.0; the third-party sequences keep their owners' terms.
 
 \section*{Use of AI Tools}
 \todo{Describe which parts of the work used AI assistance (for example code, analysis scripts,

@@ -45,9 +45,18 @@ found to dominate the outcome:
   \item A documented failure mode of emulator-based training (exploitation of the emulator) and its
         mitigation by a trust region (\cref{sec:results-p0}).
   \item A pre-registered, content-scoped test of a learned pre-compensation with a content gate,
-        evaluated once on held-out confirmation clips (\cref{sec:results-p1}).
-        \pending{state the outcome.}
-  \item \pending{Real-platform measurements: ladder probe, closed loop and viewer study
+        evaluated once on held-out confirmation clips: the learned pre-compensation does not beat
+        class-tuned sharpening, and a gate that sharpens only natural low-motion content is
+        accepted (\cref{sec:results-p1}).
+  \item An explanation of the negative result: the learned pre-compensation loses even on its
+        training clips; anchoring its forward value on the black box closes most of the gap, and
+        what remains is metric specialisation, also when it starts from the tuned configuration
+        (\cref{sec:results-why}).
+  \item Practical guidance that needs no tuning: an untuned mild sharpening on natural low-motion
+        content matches the tuned configuration, the upload bitrate matters more than any filter, and
+        about 20 uploads suffice to validate the recipe on a new platform
+        (\cref{sec:results-recipes,sec:results-platform}).
+  \item \pending{Real-platform measurements: validation on one or two platforms and a viewer study
         (\cref{sec:results-p2}).}
   \item An open-source implementation, clip manifests with per-clip licenses, and the
         pre-registration files.

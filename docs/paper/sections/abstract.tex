@@ -13,9 +13,13 @@ improves the training objective by a large margin, but independent metrics that 
 (SSIMULACRA2, XPSNR, DISTS) confirm only the tier gain; most of the apparent filter gain is colour
 and contrast change that the objective rewards. Every single-metric objective we tried degrades at
 least one metric it did not optimise. A learned pre-compensation exploits its emulator unless it is
-constrained by a trust region. We then test, in a pre-registered design with held-out
-confirmation clips, whether a learned pre-compensation helps for a defined content class.
-\pending{P1 result: H1 confirmed or not; gate result.}
-\pending{P2 result: real-platform probe and closed loop; viewer study.}
+constrained by a trust region. In a pre-registered design with held-out confirmation clips, a
+learned pre-compensation does not beat class-tuned sharpening on natural low-motion content.
+Anchoring its forward pass on the black box closes about 80\,\% of the gap, showing emulator
+exploitation; the rest trades the independent metrics for its training loss. An untuned mild
+sharpening applied only to natural low-motion content matches the tuned configuration, and the
+upload bitrate matters more than any filter. The benefit depends on the platform's rate headroom;
+validating it on a platform takes about 20 uploads.
+\pending{P2 result: real-platform validation and viewer study.}
 Code, clip manifests and the pre-registration are released.
 \end{abstract}

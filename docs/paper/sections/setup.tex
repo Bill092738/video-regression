@@ -47,8 +47,10 @@ park\_joy and old\_town\_cross; the other clips are held out.
 77 segments from 47 sources, each with a recorded license: 53 natural segments (Xiph.org: SVT, TUM,
 NTIA/ITS and public-domain video-conference sequences), 14 animation segments (Blender open movies
 and rendered e-card sequences), 4 rendered screen-content segments and 6 synthetic segments.
-Datasets without clear license terms were excluded. \todo{cite the sources individually; check
-which licenses allow figures in a public paper (research-only sources should not appear in figures).}
+Datasets without clear license terms were excluded. The per-source terms are listed with the code;
+several sources are for research use only. The figures in this paper are charts and show no frames
+of the test sequences. \todo{cite the sources individually (SVT, TUM, NTIA/ITS, Blender Foundation,
+HDgreetings, Xiph.org video-conference sequences).}
 Frame rates of 50/60\,fps are reduced to 30\,fps by dropping frames; 24/25\,fps sources are
 retimed frame for frame, which speeds their motion up by 1.2--1.25$\times$.
 
@@ -102,6 +104,26 @@ Naive upload; tier-only ($\times2$); the global sharpening-only configuration fo
 class-tuned sharpening-only configuration (GP-BO, 15 trials on the class's training clips, with every
 knob except the unsharp amount and radius frozen). The class-tuned sharpening-only configuration is
 the baseline a learned pre-compensation must beat.
+
+\subsection{Follow-up experiments}
+Each follow-up was pre-registered in the repository (plan committed before the run) and uses the
+frozen P1 classes and splits, judges and bootstrap intervals.
+\begin{itemize}
+  \item \textbf{Anchored estimator (E7).} The P1 global $G$ retrained with the estimator of
+        \cref{eq:anchored}, with the emulator of the P1 run of the same seed frozen and every other
+        setting unchanged; six anchors (every 250 steps) and, as a low-budget variant, one anchor at
+        the identity; three seeds each.
+  \item \textbf{$G$ on top of $\theta_A$ (E9).} $\theta_A$ placed in front of the black box, a new
+        emulator (156 pairs) and $G$ with six anchors; three seeds.
+  \item \textbf{Fixed recipes (E11)} (\cref{sec:recipes}) on all 77 clips.
+  \item \textbf{Transfer (E14)}: the sharpening-only configurations and P0's full configurations
+        evaluated on the other simulated platform.
+  \item \textbf{Validation size (E10)}: subsampling of the E11 results on both platforms, 10{,}000
+        clip subsets per size.
+  \item \textbf{Passthrough rule (E12)}: \texttt{ugc\_strict} plus an invented rule that serves
+        H.264 uploads of at most 720p and 2000\,kb/s (actual average) unchanged; GP-BO over upscale,
+        unsharp amount and upload bitrate (300--80{,}000\,kb/s, log scale), 30 trials, two seeds.
+\end{itemize}
 
 \subsection{Compute}
 One workstation with a 6-core CPU and an RTX 4060 GPU. A trial costs about 15--40\,s per clip.
