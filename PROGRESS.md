@@ -86,7 +86,6 @@ platforms.
   * AV1 film-grain synthesis;
   * a delayed or popularity-dependent switch to AV1 or VP9;
   * non-deterministic re-encodes.
-* **No LICENSE file** in the repository yet (see `docs/related-work.md`).
 
 ## 4. Experiment backlog
 
@@ -158,7 +157,6 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 
 ## 5. Engineering backlog
 
-* Add a `LICENSE` file (MIT or Apache-2.0 fit the current dependencies).
 * Record upload size and bitrate as a cost in every evaluation.
 * A `CommandPlatform` example script for one platform, with rate limiting and private uploads
   (E15, E16).

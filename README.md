@@ -345,6 +345,17 @@ compared and what counts as success. In short:
   * a small paired-comparison viewer study;
   * longer and more varied content.
 
+## Licensing
+
+* **Code** (everything under `src/`, `scripts/`, `tests/`): [Apache License 2.0](LICENSE), see
+  also [`NOTICE`](NOTICE).
+* **Text and figures written for this project** (README, `PROGRESS.md`, `docs/`, the charts in
+  `docs/img/`): [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+* **Third-party video material is not covered by either license.** Test sequences, and frames or
+  crops taken from them (e.g. the crop panels in `docs/img/`), keep their owners' terms. Several
+  are for research use only. See [`docs/CREDITS.md`](docs/CREDITS.md) and `docs/p1/clips.csv`.
+  The sequences are not distributed here; `vreg clips` fetches them from their hosts.
+
 ## Repository layout
 
 ```
