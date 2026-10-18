@@ -198,6 +198,25 @@ def cmd_surrogate_eval(args) -> int:
     return 0
 
 
+def cmd_online(args) -> int:
+    from . import online
+
+    run_dir = Path(args.dir)
+    if args.action == "prepare":
+        online.prepare(Path(args.protocol), run_dir)
+    elif args.action == "upload":
+        if not args.upload_cmd:
+            raise SystemExit("--upload-cmd is required (your own upload command; it gets {file})")
+        online.upload(run_dir, args.upload_cmd)
+    elif args.action == "download":
+        if not args.download_cmd:
+            raise SystemExit("--download-cmd is required (it gets {id} and {out})")
+        online.download(run_dir, args.download_cmd)
+    else:
+        online.score(run_dir)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="vreg", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -293,6 +312,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--round", type=int, default=0)
     p.add_argument("--tag", default="eval")
     p.set_defaults(fn=cmd_surrogate_eval)
+
+    p = sub.add_parser("online", help="minimal online-platform validation in phases (docs/E15-protocol.md)")
+    p.add_argument("action", choices=["prepare", "upload", "download", "score"])
+    p.add_argument("--dir", required=True, help="run directory, e.g. runs/online/youtube (holds ledger.jsonl)")
+    p.add_argument("--protocol", default="docs/e15_protocol.json")
+    p.add_argument("--upload-cmd", help="shell command with {file}; must print the video id/URL on its last line")
+    p.add_argument("--download-cmd", help="shell command with {id} and {out}, e.g. yt-dlp ... -o {out} {id}")
+    p.set_defaults(fn=cmd_online)
 
     args = ap.parse_args(argv)
     return args.fn(args)

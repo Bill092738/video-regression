@@ -1,0 +1,31 @@
+{
+  "description": "Machine-readable form of docs/E15-protocol.md: the minimal online-platform validation (23 uploads).",
+  "max_uploads": 23,
+  "min_gap_s": 300,
+  "decision": {"step": "validation", "on": "recipe", "off": "tier", "judges": ["ssimulacra2", "xpsnr"]},
+  "items": [
+    {"step": "validation", "clip": "mobcal_6", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "mobcal_6", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "stockholm_6", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "stockholm_6", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "kristen_and_sara_2", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "kristen_and_sara_2", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "stockholm_0", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "stockholm_0", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "four_people_2", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "four_people_2", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "vidyo3_2", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "vidyo3_2", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "tractor_0", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "tractor_0", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "sunflower_10", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "sunflower_10", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "pedestrian_area_0", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "pedestrian_area_0", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "validation", "clip": "station2_8", "config": "tier", "params": {"upscale": 2.0}},
+    {"step": "validation", "clip": "station2_8", "config": "recipe", "params": {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}},
+    {"step": "passthrough", "clip": "johnny_2", "config": "720p_1900k", "params": {}, "upload_kbps": 1900},
+    {"step": "passthrough", "clip": "johnny_2", "config": "720p_2500k", "params": {}, "upload_kbps": 2500},
+    {"step": "bitrate", "clip": "mobcal_6", "config": "tier_16m", "params": {"upscale": 2.0}, "upload_kbps": 16000}
+  ]
+}
