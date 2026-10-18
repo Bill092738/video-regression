@@ -19,7 +19,7 @@ are in [`docs/related-work.md`](docs/related-work.md). The full result tables ar
 | HTML report: convergence, sensitivity, crops, transfer table, surrogate rounds; mean ± sd across seeds | done | `vreg report` |
 | Report-only judges SSIMULACRA2, DISTS, XPSNR (not in `composite`), back-filled from cached playbacks; frozen knobs (`--fix`) | done (P0) | `vreg rescore`, `vreg optimize --fix`, `src/vreg/metrics.py` |
 | P0 experiments E1–E5 | done | [§6](#6-p0-results), `scripts/run_p0.sh`, `scripts/p0_tables.py` |
-| P1 plan: content-scoped learned `G`, gate, pre-registered classes (E19–E23) | **planned** | [`docs/P1-plan.md`](docs/P1-plan.md) |
+| P1: content-scoped learned `G`, gate, pre-registered classes (E19–E23), 77-clip licensed set | done: H1 not confirmed, gate accepted | [§7](#7-p1-results), `docs/p1/`, `scripts/run_p1.sh`, `scripts/p1_tables.py` |
 | Unit tests on tiny clips, CI without torch | done | `tests/`, `.github/workflows/ci.yml` |
 | Prior-work and license review | done | `docs/related-work.md` |
 
@@ -30,6 +30,11 @@ are in [`docs/related-work.md`](docs/related-work.md). The full result tables ar
 > SSIMULACRA2 and XPSNR are lower than tier-only on every natural clip, on every seed. It
 > downgraded point 6: `G` beats tier-only on 3/4 natural clips and beats θ only on
 > old_town_cross. Point 2, the tier gain, is confirmed by every independent metric.
+>
+> **P1 ([§7](#7-p1-results))** settles point 6 on 77 clips with pre-registered classes: the learned
+> `G` does not beat a class-tuned sharpening-only θ on any class, and it damages graphics and
+> animation. Point 4 is refined: mild sharpening alone does not hurt graphics; the content gate
+> that is accepted is "sharpen natural low-motion content, tier-only elsewhere".
 
 All numbers are from **simulated** platforms, with **one seed** per configuration and 3-second
 clips. They show that the method and the tooling work. They are not yet evidence about real
@@ -67,9 +72,11 @@ platforms.
 * **The objective and the independent judges disagree on the filter gain** (P0, §6). No single
   metric optimised so far is free of regressions on the others, and there is no viewer study
   to decide which side is right.
-* **The learned `G`'s advantage is narrow and untested by content type.** It beats GP-BO θ only
-  on old_town_cross, and the four natural clips are too few to tell which content it suits. P1
-  addresses this with pre-registered content classes and a larger clip set.
+* **The learned `G` does not beat simple sharpening on any content class** (P1, §7). It raises
+  LPIPS, its training loss, and lowers SSIMULACRA2 and DISTS. Whether a better-constrained `G`
+  (the P1-later items E7–E9) can do better is open.
+* **Class C (natural, flat or dark) is untested:** the licensed natural sources gave one such
+  clip. Own recordings could be added as a separate exploratory addendum.
 * **Domain-adaptation rounds degrade.** `E`'s fidelity on `G`'s outputs stays at about 25 dB on
   dense texture, and `G`'s residual keeps growing.
 * **The simulator lacks some real behaviours:**
@@ -79,7 +86,6 @@ platforms.
   * AV1 film-grain synthesis;
   * a delayed or popularity-dependent switch to AV1 or VP9;
   * non-deterministic re-encodes.
-* **No LICENSE file** in the repository yet (see `docs/related-work.md`).
 
 ## 4. Experiment backlog
 
@@ -100,43 +106,45 @@ Execution plan (code changes, commands, decision rules): [`docs/P0-plan.md`](doc
 | E4 | ✅ **Goodhart matrix**: optimise for VMAF NEG only, for composite, and for SSIMULACRA2; evaluate each result with all metrics | 3 objectives × all metrics | The objective whose optimum still scores well on the other metrics becomes the default |
 | E5 | ✅ **Filter-only at the native tier**: search θ with the upscale fixed at ×1 | filter gain at ×1 vs filter gain at ×2 | Separates the filter gain from the tier gain more cleanly than the transfer table |
 
-### P1 (current): content-scoped learned pre-compensation
+### P1: content-scoped learned pre-compensation
 
 Execution plan: [`docs/P1-plan.md`](docs/P1-plan.md). P0 confirmed only the tier gain. P1 tests
 whether a learned `G` beats the strongest surviving filter, a class-tuned sharpening-only θ, for
 a content class defined **before** training. It also adds a gate that switches filters off
 elsewhere. Classes, hypotheses, splits and decision rules are pre-registered, and the confirm
-split is evaluated once.
+split is evaluated once. **All five are done.** The results and verdicts are in [§7](#7-p1-results).
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
-| E19 | **Content set and classes**: about 60 licensed 3 s clips; SI/TI, flat and dark fractions; classes A (natural, low motion, moderate detail), B (dense texture or high motion), C (flat, gradient or dark), D (graphics, text, screen, animation); train/dev/confirm splits grouped by source | none (set-up) | ≥ 12 clips in A and B, ≥ 8 in C and D; `docs/p1/` committed before any training |
-| E20 | **Baselines per class**: naive, tier-only, P0 global sharpening-only θ, class-tuned sharpening-only θ | per class, all metrics | Fixes the baseline `G` must beat |
-| E21 | **`G` loss selection**: LPIPS vs DISTS vs LPIPS+DISTS (a `G` is never judged by its own loss) | on class A dev | One loss fixed for E22–E23 |
-| E22 | **Specialist vs global `G`**, 3 seeds | global `G`, specialist A, specialist B vs class-tuned sharpening-only θ, on dev | Choose the `G` and the gate table before E23 |
-| E23 | **Gate and confirmation** (once, on the confirm split) | gated system vs tier-only vs global sharpening-only θ | H1: ≥ 2 judges with a 95 % CI over clips excluding 0, SSIMULACRA2 not worse, sign holds in ≥ 2/3 seeds. Gate: no class worse than tier-only on SSIMULACRA2 or XPSNR |
+| E19 | ✅ **Content set and classes**: about 60 licensed 3 s clips; SI/TI, flat and dark fractions; classes A (natural, low motion, moderate detail), B (dense texture or high motion), C (flat, gradient or dark), D (graphics, text, screen, animation); train/dev/confirm splits grouped by source | none (set-up) | ≥ 12 clips in A and B, ≥ 8 in C and D; `docs/p1/` committed before any training |
+| E20 | ✅ **Baselines per class**: naive, tier-only, P0 global sharpening-only θ, class-tuned sharpening-only θ | per class, all metrics | Fixes the baseline `G` must beat |
+| E21 | ✅ **`G` loss selection**: LPIPS vs DISTS vs LPIPS+DISTS (a `G` is never judged by its own loss) | on class A dev | One loss fixed for E22–E23 |
+| E22 | ✅ **Specialist vs global `G`**, 3 seeds | global `G`, specialist A, specialist B vs class-tuned sharpening-only θ, on dev | Choose the `G` and the gate table before E23 |
+| E23 | ✅ **Gate and confirmation** (once, on the confirm split) | gated system vs tier-only vs global sharpening-only θ | H1: ≥ 2 judges with a 95 % CI over clips excluding 0, SSIMULACRA2 not worse, sign holds in ≥ 2/3 seeds. Gate: no class worse than tier-only on SSIMULACRA2 or XPSNR |
 
 E6 (content-adaptive θ) is absorbed into E19–E23: the gate is its content-adaptive part.
 
 ### P1-later: method improvements
 
-These items wait until P1 shows whether a learned `G` is worth improving.
+These items waited on P1. P1 found that the current `G` does not beat class-tuned sharpening on
+any content class ([§7](#7-p1-results)), so they are now the only route by which a learned `G` could
+earn its place. Success should be judged against the P1 gate, not against tier-only.
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
-| E7 | **Real-forward / surrogate-backward estimator** for `G`: `y = y_real + E(x) − stopgrad(E(x))`, following SelfC and SCALED | current `G` (emulator forward) vs this estimator | No collapse without a trust region; the gain on dense texture (park_joy, ducks) moves closer to GP-BO θ |
+| E7 | ✅ **Real-forward / surrogate-backward estimator** for `G`: `y = y_real + E(x) − stopgrad(E(x))`, following SelfC and SCALED | current `G` (emulator forward) vs this estimator | No collapse without a trust region; the gain on dense texture (park_joy, ducks) moves closer to GP-BO θ |
 | E8 | **Emulator robustness**: an ensemble of `E` with a disagreement penalty; a conservative (COMs-style) `E`; `G`-like perturbations in round-0 data; temporal context (stacked frames) | trust region only vs each option | Emulator PSNR on `G`'s outputs above 30 dB, and domain-adaptation rounds improve instead of degrading |
-| E9 | **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
-| E10 | **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
-| E11 | **Common creator recipe as a baseline**: lanczos ×2 + mild unsharp, at a fixed upload bitrate | creator recipe vs best θ | Shows what the optimiser adds over standard advice |
+| E9 | ✅ **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
+| E10 | ✅ (reframed as the validation budget, §12) **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
+| E11 | ✅ **Common creator recipe as a baseline**: lanczos ×2 + mild unsharp, at a fixed upload bitrate | creator recipe vs best θ | Shows what the optimiser adds over standard advice |
 
 ### P1: simulator realism
 
 | # | Experiment | Compare | Success criterion |
 |---|---|---|---|
-| E12 | Add a **passthrough branch below a bitrate cap** (Bilibili-style "no second encode"); make upload bitrate part of θ | old vs new profile; does the optimiser find the passthrough region? | The optimiser discovers the bitrate threshold when it exists |
+| E12 | ✅ (§13) Add a **passthrough branch below a bitrate cap** (Bilibili-style "no second encode"); make upload bitrate part of θ | old vs new profile; does the optimiser find the passthrough region? | The optimiser discovers the bitrate threshold when it exists |
 | E13 | Add **AV1 film-grain synthesis** (denoise + grain table) to `ugc_av1`, and **several renditions** (480p/720p/1080p, weighted) | single 720p rendition vs multi-rendition objective | θ that is robust across renditions |
-| E14 | **Cross-platform transfer**: apply the `ugc_strict` θ to `ugc_av1` and the reverse | transferred vs native θ | Quantifies how much tuning per platform matters |
+| E14 | ✅ (§8, §8b) **Cross-platform transfer**: apply the `ugc_strict` θ to `ugc_av1` and the reverse | transferred vs native θ | Quantifies how much tuning per platform matters |
 
 ### P2: real platform and human study
 
@@ -149,9 +157,6 @@ These items wait until P1 shows whether a learned `G` is worth improving.
 
 ## 5. Engineering backlog
 
-* Add a `LICENSE` file (MIT or Apache-2.0 fit the current dependencies).
-* P1 code changes (manifest-driven clips, `vreg features`, `vreg classify`, clip selectors,
-  `--g-loss`, `--pairs-cache`, P1 tables): see [`docs/P1-plan.md`](docs/P1-plan.md).
 * Record upload size and bitrate as a cost in every evaluation.
 * A `CommandPlatform` example script for one platform, with rate limiting and private uploads
   (E15, E16).
@@ -361,3 +366,809 @@ Bold: the winner by the pairwise rule; no bold means a tie.
 | E1 + E2 | Filter gain over tier-only, ugc_strict, across seeds | **not confirmed** on all 5 GP-BO seeds (0–1/3 judges); SSIMULACRA2 lower on every clip in every seed |
 | E1 | Learned `G` beats tier-only on all natural clips | **downgraded**: 3/4 clips; below tier-only on ducks_take_off in all 3 new seeds |
 | E1 | Learned `G` beats GP-BO θ on smoother content | **downgraded**: only old_town_cross, only on composite; tie on in_to_tree, where θ wins on SSIMULACRA2 |
+
+## 7. P1 results
+
+Plan: [`docs/P1-plan.md`](docs/P1-plan.md). Platform `sim:ugc_strict`, upload ×2. Driver:
+`scripts/run_p1.sh`; tables, CIs and decision rules: `scripts/p1_tables.py` (→ `runs/p1_tables.md`).
+
+### E19: content set, classes and splits (frozen before any training)
+
+The manifest, features and classes (`docs/p1/clips.csv`, `features.csv`, `classes.json`) were
+committed before E20. The set has **77 three-second segments from 47 sources**, with a license
+recorded for every row:
+
+* **53 natural** segments, all from media.xiph.org:
+  * SVT MultiFormat (the four P0 clips plus crowd_run);
+  * SVT 720p and TUM 1080p (no copyright, no restrictions);
+  * NTIA/ITS (research use only);
+  * public-domain video-conference sequences.
+* **14 animation**: Blender open movies (CC BY), plus the HDgreetings sequences (benchmarking and
+  research only). The HDgreetings sequences turned out to be 3-D rendered e-cards, so they were
+  labelled `animation` rather than `natural` before any feature was computed.
+* **4 screen**: this repository's own files rendered as scrolling editor, terminal and document
+  views (`scripts/make_screen_clips.py`). They are rendered, not captured.
+* **6 synthetic**: the three P0 lavfi clips plus a text ticker on colour bars, Game of Life and a
+  dark gradient.
+
+Not used: YouTube-UGC (no official license wording found) and Netflix Open Content (CC BY-NC-ND;
+one set has no license file).
+
+| class | train | dev | confirm | report only | total | sources |
+|---|---|---|---|---|---|---|
+| A: natural, low motion, moderate detail | 13 | 7 | 7 | 0 | 27 | 17 |
+| B: natural, dense texture or high motion | 13 | 6 | 6 | 0 | 25 | 14 |
+| C: natural, flat or dark dominated | 0 | 0 | 0 | 1 | 1 | 1 |
+| D: graphics, text, screen, animation | 12 | 6 | 6 | 0 | 24 | 17 |
+
+Thresholds (from `classify`):
+* **B** if SI ≥ 109.3 or TI ≥ 33.1. These are the 66th percentiles over the 52 natural clips not
+  in C. SI and TI are the ITU-T P.910 maxima over frames (ffmpeg `siti`).
+* **C** if `flat_frac ≥ 0.5` or `dark_frac ≥ 0.5`.
+
+**Class C has a single clip** (blue_sky_5, `dark_frac` 0.52); the target was 8. Natural footage
+from these sources is rarely flat (16×16 block std < 2) or dark (luma < 40) over half the frame.
+The thresholds were not changed. Decided before E20:
+* **C is report-only.** blue_sky_5 gets no split, is never trained on and is excluded from every
+  statistical test. It is listed in the tables only (`vreg classify --report-only C`).
+* **C's gate is pre-registered as tier-only** (no filtering). There is no dev data to choose it
+  from. `p1_tables.py` refuses a decisions file that differs.
+* **H3 is not testable for class C** (n = 1). Class D still tests H3.
+* Own recordings for C may be added later only as a separate exploratory addendum. They must not
+  change the frozen classes, splits or the H1 test.
+
+Other set-up choices:
+* **Splits are grouped by source across classes.** Splits are drawn per class (50/25/25 %), but
+  a source keeps the split it first received (in class order A, B, D). No source is therefore in
+  one class's training split and another's confirm split. Example: blue_sky_0 is in B train,
+  while blue_sky_5 is report-only.
+* **Frame rates.** 50/60 fps sources drop frames to 30 fps, as in P0. 24/25 fps sources are
+  retimed frame for frame (their motion plays 1.2–1.25× faster), because duplicated frames would
+  be unnaturally cheap to encode. Non-16:9 sources are centre-cropped.
+* **The confirm split stays unseen until E23.** The E20 baseline tables use the train and dev
+  clips only.
+
+### E20: baselines per class
+
+Gains over tier-only on the **train and dev clips** (the confirm split stays unseen until E23),
+mean [95 % bootstrap CI over clips]; bold = the CI excludes 0. The class-tuned sharpening-only θ
+is GP-BO with 15 trials on that class's training clips, over `sharpen` and `sharpen_radius` only.
+The P0 global θ is the best θ of `strict_gp_noeq` (unsharp 0.89, 5×5).
+
+**Class A** (20 clips). Class-tuned sharpening-only θ: unsharp 1.06, radius 2 (size 5).
+
+| configuration | composite | vmaf_neg | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| naive | **-8.05 [-10.11, -6.35]** (n=20) | **-5.87 [-7.29, -4.70]** | **-0.0428 [-0.0630, -0.0270]** | **-16.79 [-21.10, -12.82]** | **-0.0208 [-0.0265, -0.0159]** | **-1.19 [-1.53, -0.89]** |
+| P0 global sharpening-only θ | **+1.76 [+1.40, +2.14]** (n=20) | **+1.19 [+0.96, +1.39]** | **+0.0139 [+0.0086, +0.0199]** | +0.08 [-0.74, +0.72] | **+0.0024 [+0.0011, +0.0040]** | **+0.39 [+0.28, +0.50]** |
+| class-tuned sharpening-only θ | **+2.15 [+1.70, +2.59]** (n=20) | **+1.20 [+0.91, +1.47]** | **+0.0198 [+0.0123, +0.0284]** | +0.06 [-1.03, +0.97] | **+0.0040 [+0.0020, +0.0061]** | **+0.58 [+0.43, +0.76]** |
+
+**Class B** (19 clips). Class-tuned sharpening-only θ: unsharp 0.85, radius 2 (size 5).
+
+| configuration | composite | vmaf_neg | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| naive | **-11.11 [-13.23, -8.93]** (n=19) | **-8.61 [-10.36, -6.84]** | **-0.0522 [-0.0636, -0.0404]** | **-20.84 [-24.57, -16.93]** | **-0.0249 [-0.0309, -0.0189]** | **-1.48 [-1.78, -1.19]** |
+| P0 global sharpening-only θ | **+0.92 [+0.64, +1.17]** (n=19) | **+0.37 [+0.16, +0.59]** | **+0.0135 [+0.0093, +0.0179]** | **-2.19 [-3.27, -1.14]** | -0.0005 [-0.0016, +0.0005] | **+0.32 [+0.25, +0.39]** |
+| class-tuned sharpening-only θ | **+0.95 [+0.69, +1.19]** (n=19) | **+0.42 [+0.21, +0.62]** | **+0.0132 [+0.0090, +0.0176]** | **-2.05 [-3.09, -1.02]** | -0.0002 [-0.0015, +0.0009] | **+0.32 [+0.25, +0.40]** |
+
+**Class C** (report only, 1 clip; no CI, not tested).
+
+| clip | configuration | composite | vmaf_neg | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|---|
+| blue_sky_5 | naive | -10.92 | -7.17 | -0.0748 | -23.72 | -0.0219 | -1.10 |
+| blue_sky_5 | P0 global sharpening-only θ | +0.57 | +0.22 | +0.0063 | -0.69 | -0.0032 | +0.22 |
+
+**Class D** (18 clips). Class-tuned sharpening-only θ: unsharp 1.05, radius 2 (size 5).
+
+| configuration | composite | vmaf_neg | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| naive | **-5.29 [-7.36, -3.20]** (n=18) | **-3.33 [-4.94, -1.67]** | **-0.0185 [-0.0276, -0.0096]** | **-9.49 [-13.37, -5.63]** | **-0.0124 [-0.0172, -0.0077]** | **-0.81 [-1.32, -0.30]** |
+| P0 global sharpening-only θ | **+1.30 [+0.81, +1.72]** (n=18) | **+0.96 [+0.56, +1.29]** | **+0.0073 [+0.0043, +0.0109]** | +1.08 [-0.39, +2.69] | +0.0018 [-0.0001, +0.0034] | **+0.42 [+0.27, +0.58]** |
+| class-tuned sharpening-only θ | **+1.67 [+0.95, +2.33]** (n=18) | **+0.95 [+0.41, +1.41]** | **+0.0104 [+0.0060, +0.0154]** | +0.76 [-1.06, +2.44] | **+0.0030 [+0.0002, +0.0056]** | **+0.50 [+0.33, +0.68]** |
+
+![E20 baselines](docs/img/p1/e20_baselines.png)
+
+* **Class-tuned θ is the baseline `G` must beat.** On A it beats tier-only on five of six
+  metrics, including DISTS and XPSNR; SSIMULACRA2 is flat (+0.06, CI spans 0). It is slightly
+  stronger than the global θ on A (unsharp 1.06 vs 0.89).
+* **On B, sharpening lowers SSIMULACRA2** (−2.1, CI below 0), DISTS is flat, and only XPSNR (and
+  the objective's own components) improve. This fits the mechanism behind H2: on dense texture
+  the ingest denoiser and rate cap leave little that a pre-emphasis can restore.
+* **On D, mild sharpening alone does not hurt** on average: XPSNR and DISTS improve, SSIMULACRA2
+  is flat. The large P0 damage on testsrc came from the full θ (grain and colour boost), not from
+  sharpening. H3 for D will be decided on the confirm split with `G` included.
+
+### E21: `G` loss selection
+
+Global `G` trained on `@natural:train` (26 clips), rounds 1, seed 0, trust weight 2.0, residual
+cap 0.06, 3000 emulator / 1500 generator steps; round-0 pairs (6 variants per clip) collected
+once into `runs/p1_pairs` and reused by every later run. Judged on the 7 class A dev clips, gain
+over the class-tuned sharpening-only θ, mean [95 % CI over clips]. A `G` is never judged by its
+own loss; VMAF NEG judges only the DISTS-trained `G`s (code change 6).
+
+| G loss | ssimulacra2 | dists | xpsnr | vmaf_neg | judges with positive mean |
+|---|---|---|---|---|---|
+| lpips | **-4.23 [-5.10, -3.38]** | +0.0005 [-0.0069, +0.0097] | +0.22 [-0.45, +0.99] | (not a judge) **-1.63 [-2.82, -0.74]** | 2/3 |
+| dists | **-0.91 [-1.39, -0.34]** | (own loss) **+0.0088 [+0.0007, +0.0175]** | -0.06 [-0.63, +0.60] | **-1.38 [-2.54, -0.55]** | 0/3 |
+| lpips+dists | **-3.75 [-4.66, -2.75]** | (own loss) -0.0055 [-0.0113, +0.0009] | +0.12 [-0.51, +0.84] | **-2.21 [-3.43, -1.36]** | 1/3 |
+
+**Chosen loss: `lpips`** (the pre-registered rule: most judges with a positive mean gain, with
+SSIMULACRA2 as the tie-break). Fixed for E22 and E23.
+
+* The rule counts signs of means, and neither positive mean for `lpips` (DISTS, XPSNR) has a CI
+  that excludes 0. **SSIMULACRA2 is clearly lower** than with the class-tuned θ (−4.2, CI
+  [−5.1, −3.4]); H1's criterion 2 (SSIMULACRA2 gain ≥ 0) is therefore unlikely to hold on the
+  confirm split unless the specialist `G` differs.
+* The DISTS-trained `G` changes pixels about a third as much (mean |G(X) − X| ≈ 1.0 vs 2.9
+  levels on A dev) and costs much less SSIMULACRA2 (−0.9), but no judge favours it over the
+  class-tuned θ.
+* The emulator is accurate on these clips: 31–36 dB PSNR against the real playback of `G`'s
+  outputs, compared with ~25 dB on dense texture in P0.
+
+### E22: specialist vs global `G` (dev split)
+
+Three seeds each, loss `lpips`, rounds 1, round-0 pairs reused from `runs/p1_pairs`. The global
+`G` is trained on `@natural:train` (26 clips; its seed 0 is the E21 run), specialist A on
+`@A:train` (13), specialist B on `@B:train` (13). Every `G` is evaluated on all 19 dev clips. A
+clip's value is the mean over the three seeds; CIs are 95 % bootstrap over clips.
+
+#### Gain over tier-only (dev clips, mean over seeds per clip, [95 % CI over clips])
+
+| class | configuration | seeds | composite | ssimulacra2 | dists | xpsnr | vmaf_neg |
+|---|---|---|---|---|---|---|---|
+| A (7) | class-tuned θ | – | **+1.97 [+1.50, +2.38]** | +0.04 [-0.66, +0.71] | +0.0012 [-0.0003, +0.0025] | **+0.41 [+0.31, +0.50]** | **+1.23 [+0.96, +1.45]** |
+| A (7) | P0 global θ | – | **+1.69 [+1.26, +2.17]** | +0.11 [-0.43, +0.58] | +0.0004 [-0.0010, +0.0018] | **+0.31 [+0.22, +0.39]** | **+1.33 [+1.09, +1.56]** |
+| A (7) | global G (@natural:train) | 3 | **+2.43 [+0.29, +4.32]** | **-4.25 [-4.86, -3.71]** | -0.0060 [-0.0122, +0.0008] | +0.50 [-0.16, +1.25] | (not a judge) -0.38 [-1.64, +0.57] |
+| A (7) | specialist A (@A:train) | 3 | +0.46 [-1.90, +2.48] | **-7.74 [-8.37, -7.04]** | **-0.0440 [-0.0520, -0.0364]** | +0.04 [-0.67, +0.81] | (not a judge) -1.05 [-2.47, +0.09] |
+| A (7) | specialist B (@B:train) | 3 | +1.59 [-0.13, +3.03] | **-2.92 [-3.66, -2.26]** | **-0.0075 [-0.0145, -0.0002]** | -0.41 [-0.93, +0.16] | (not a judge) -0.62 [-1.81, +0.27] |
+| B (6) | class-tuned θ | – | **+0.82 [+0.30, +1.28]** | **-2.85 [-3.95, -1.49]** | +0.0006 [-0.0008, +0.0019] | **+0.28 [+0.20, +0.37]** | **+0.25 [+0.02, +0.49]** |
+| B (6) | P0 global θ | – | **+0.82 [+0.33, +1.28]** | **-2.92 [-3.88, -1.63]** | -0.0002 [-0.0014, +0.0010] | **+0.29 [+0.19, +0.37]** | **+0.25 [+0.03, +0.47]** |
+| B (6) | global G (@natural:train) | 3 | -0.15 [-1.45, +1.11] | **-5.72 [-7.22, -4.56]** | +0.0004 [-0.0096, +0.0106] | **+0.39 [+0.25, +0.52]** | (not a judge) **-1.59 [-2.24, -0.97]** |
+| B (6) | specialist A (@A:train) | 3 | -1.30 [-3.20, +0.45] | **-7.49 [-8.91, -6.22]** | -0.0123 [-0.0266, +0.0022] | **+0.42 [+0.33, +0.50]** | (not a judge) **-2.17 [-2.81, -1.49]** |
+| B (6) | specialist B (@B:train) | 3 | -0.23 [-1.20, +0.83] | **-4.68 [-6.04, -3.53]** | -0.0021 [-0.0100, +0.0056] | **+0.14 [+0.03, +0.24]** | (not a judge) **-1.29 [-1.85, -0.74]** |
+| D (6) | class-tuned θ | – | **+1.28 [+0.08, +2.23]** | -0.46 [-4.14, +2.14] | -0.0001 [-0.0051, +0.0038] | **+0.50 [+0.13, +0.88]** | **+1.05 [+0.01, +1.87]** |
+| D (6) | P0 global θ | – | **+1.10 [+0.28, +1.81]** | +0.23 [-2.24, +2.10] | -0.0004 [-0.0043, +0.0023] | **+0.49 [+0.15, +0.84]** | **+1.06 [+0.31, +1.74]** |
+| D (6) | global G (@natural:train) | 3 | -2.07 [-5.76, +1.68] | **-5.66 [-9.63, -1.91]** | **-0.0845 [-0.1422, -0.0309]** | **-3.80 [-8.10, -0.18]** | (not a judge) -1.05 [-3.03, +0.43] |
+| D (6) | specialist A (@A:train) | 3 | **-7.10 [-12.05, -2.31]** | **-11.16 [-17.19, -5.83]** | **-0.1351 [-0.2126, -0.0643]** | **-4.57 [-8.81, -0.42]** | (not a judge) **-1.82 [-3.98, -0.26]** |
+| D (6) | specialist B (@B:train) | 3 | -1.72 [-4.96, +1.69] | **-5.50 [-8.11, -2.96]** | **-0.0766 [-0.1341, -0.0280]** | **-4.05 [-7.91, -0.75]** | (not a judge) **-1.56 [-3.52, -0.02]** |
+
+#### Gain over class-tuned sharpening-only θ (dev clips, mean over seeds per clip, [95 % CI over clips])
+
+| class | configuration | seeds | composite | ssimulacra2 | dists | xpsnr | vmaf_neg |
+|---|---|---|---|---|---|---|---|
+| A (7) | global G (@natural:train) | 3 | +0.46 [-1.45, +2.14] | **-4.28 [-5.21, -3.24]** | **-0.0072 [-0.0138, -0.0005]** | +0.10 [-0.56, +0.84] | (not a judge) **-1.61 [-2.85, -0.72]** |
+| A (7) | specialist A (@A:train) | 3 | -1.51 [-3.59, +0.26] | **-7.77 [-8.88, -6.50]** | **-0.0452 [-0.0541, -0.0367]** | -0.37 [-1.09, +0.42] | (not a judge) **-2.29 [-3.65, -1.26]** |
+| A (7) | specialist B (@B:train) | 3 | -0.38 [-1.95, +1.00] | **-2.96 [-3.93, -2.05]** | **-0.0087 [-0.0157, -0.0016]** | **-0.81 [-1.34, -0.25]** | (not a judge) **-1.86 [-3.01, -1.11]** |
+| B (6) | global G (@natural:train) | 3 | **-0.97 [-1.85, -0.10]** | **-2.87 [-4.64, -1.24]** | -0.0002 [-0.0092, +0.0090] | **+0.11 [+0.05, +0.16]** | (not a judge) **-1.85 [-2.31, -1.38]** |
+| B (6) | specialist A (@A:train) | 3 | **-2.12 [-3.78, -0.72]** | **-4.65 [-6.17, -3.27]** | -0.0129 [-0.0265, +0.0009] | **+0.14 [+0.10, +0.19]** | (not a judge) **-2.42 [-2.88, -1.91]** |
+| B (6) | specialist B (@B:train) | 3 | **-1.06 [-1.74, -0.37]** | -1.83 [-3.57, +0.01] | -0.0027 [-0.0096, +0.0039] | **-0.14 [-0.18, -0.11]** | (not a judge) **-1.55 [-1.92, -1.14]** |
+| D (6) | global G (@natural:train) | 3 | **-3.35 [-6.30, -0.31]** | **-5.20 [-7.45, -3.12]** | **-0.0844 [-0.1378, -0.0339]** | **-4.30 [-8.74, -0.54]** | (not a judge) **-2.10 [-4.68, -0.00]** |
+| D (6) | specialist A (@A:train) | 3 | **-8.38 [-12.72, -4.32]** | **-10.70 [-16.08, -6.63]** | **-0.1350 [-0.2093, -0.0666]** | **-5.07 [-9.55, -0.82]** | (not a judge) **-2.87 [-5.57, -0.57]** |
+| D (6) | specialist B (@B:train) | 3 | **-3.00 [-5.94, -0.13]** | **-5.04 [-7.27, -2.83]** | **-0.0766 [-0.1284, -0.0310]** | **-4.55 [-8.63, -1.12]** | (not a judge) **-2.61 [-5.10, -0.39]** |
+
+#### Sign of the mean gain over class-tuned θ, per seed (judges of the chosen loss)
+
+| class | configuration | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|
+| A | global G (@natural:train) | − − − | + − − | + + − |
+| A | specialist A (@A:train) | − − − | − − − | − − − |
+| A | specialist B (@B:train) | − − − | + − + | − − − |
+| B | global G (@natural:train) | − − − | + + − | + + + |
+| B | specialist A (@A:train) | − − − | − − − | + + + |
+| B | specialist B (@B:train) | − − − | + − + | − − − |
+| D | global G (@natural:train) | − − − | − − − | − − − |
+| D | specialist A (@A:train) | − − − | − − − | − − − |
+| D | specialist B (@B:train) | − − − | − − − | − − − |
+
+![E22 dev](docs/img/p1/e22_dev.png)
+
+* **No `G` beats the class-tuned sharpening-only θ in any class on dev.** Every `G` lowers
+  SSIMULACRA2 relative to it, in every class and every seed.
+* **Class A:** the global `G` is the best `G` (composite +0.5, XPSNR +0.1, both CIs spanning 0),
+  but SSIMULACRA2 (−4.3) and DISTS (−0.007) are lower than with the class-tuned θ. The
+  specialist A `G` is worse than the global one on every judge (SSIMULACRA2 −7.8): 13 training
+  clips are not enough for it.
+* **Class B (H2):** as predicted, no `G` beats the class-tuned θ; only XPSNR moves slightly in
+  `G`'s favour for the global and specialist-A `G`s.
+* **Class D:** every `G` damages graphics, text and animation on all judges (DISTS −0.08 to
+  −0.14, XPSNR −4 to −5 vs tier-only).
+* Bookkeeping: `p1_tables.py` first recomputed E21 from all seeds once E22 had added seeds 1 and
+  2, which flipped its "choice" to `lpips+dists`. E21 is defined on seed 0 and its choice
+  (`lpips`) was fixed before E22, which ran with it. The script now uses seed 0 for E21 and
+  refuses to overwrite a recorded choice.
+
+### Decisions before E23 (written from dev results only, `docs/p1/decisions.json`)
+
+* **`G` for class A: the global `G`** (better than specialist A on every judge on A dev).
+* **No additional confirmatory class** is nominated: no `G` beats the class-tuned θ on any judge
+  with a CI above 0 in any class. The H1 tests therefore use α = 0.05 (95 % CIs).
+* **Gate rule:** per class, among `G`, the class-tuned sharpening-only θ and tier-only, keep the
+  configurations whose dev mean SSIMULACRA2 and XPSNR gains over tier-only are ≥ 0 (the gate
+  acceptance criterion, applied on dev). Pick the one with the most judges positive over
+  tier-only; tier-only on a tie or if nothing else qualifies.
+* **Gate table:**
+
+  | class | configuration | why (dev) |
+  |---|---|---|
+  | A | class-tuned sharpening-only θ | SSIMULACRA2 +0.04, DISTS +0.0012, XPSNR +0.41 over tier-only; `G` fails (SSIMULACRA2 −4.3) |
+  | B | tier-only | class θ fails (SSIMULACRA2 −2.9); every `G` fails |
+  | C | tier-only | pre-registered before E20 |
+  | D | tier-only | class θ fails (SSIMULACRA2 −0.5); every `G` fails |
+
+* E23 evaluates the global `G` (3 seeds) on the 19 confirm clips, once, with no retraining and no
+  threshold changes.
+
+### E23: confirmation (confirm split, evaluated once)
+
+The global `G` (loss `lpips`, 3 seeds) was evaluated on the 19 confirm clips with no retraining
+and no change to thresholds or decisions (`vreg surrogate-eval … --clips @*:confirm`).
+
+#### H1: class A, G vs class-tuned sharpening-only θ (7 clips, 95 % CI)
+
+| judge | gain [CI] | CI excludes 0 (positive) | positive seeds |
+|---|---|---|---|
+| ssimulacra2 | **-3.52 [-4.26, -2.89]** | no | 0/3 |
+| dists | **-0.0112 [-0.0139, -0.0086]** | no | 0/3 |
+| xpsnr | +0.01 [-0.07, +0.10] | no | 1/3 |
+
+1. ≥ 2 judges with a CI above 0: **no** (0)
+2. SSIMULACRA2 mean gain ≥ 0: **no** (-3.52)
+3. sign holds in ≥ 2 of 3 seeds for those judges: **no**
+
+**H1 (A): not confirmed.**
+
+#### Gate on the confirm split
+
+Gate table (chosen on dev): A → theta, B → tier, C → tier, D → tier.
+
+| class | clips | SSIMULACRA2 gate − tier | XPSNR gate − tier | not worse than tier-only |
+|---|---|---|---|---|
+| A | 7 | +0.11 [-0.89, +0.97] | **+0.32 [+0.24, +0.40]** | yes |
+| B | 6 | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] | yes |
+| C | 0 | – | – | not tested (report only) |
+| D | 6 | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] | yes |
+
+| judge | gate − P0 global sharpening-only θ, all confirm clips |
+|---|---|
+| ssimulacra2 | +1.03 [-0.39, +2.28] |
+| dists | +0.0007 [-0.0007, +0.0023] |
+| xpsnr | **-0.18 [-0.30, -0.06]** |
+
+**Gate: accepted** (every class ≥ tier-only on SSIMULACRA2 and XPSNR: yes; ≥ global θ on 2/3 judges).
+
+#### Exploratory: every configuration on the confirm split, per class (H2, H3)
+
+Gain over tier-only, mean [95 % CI over clips]; G is the mean over its 3 seeds per clip.
+
+| class | configuration | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|
+| A (7) | class-tuned θ | **+2.06 [+1.39, +2.75]** | +0.11 [-0.89, +0.97] | **+0.0023 [+0.0005, +0.0040]** | **+0.32 [+0.24, +0.40]** |
+| A (7) | P0 global θ | **+1.54 [+1.09, +2.03]** | +0.21 [-0.45, +0.68] | **+0.0017 [+0.0004, +0.0029]** | **+0.22 [+0.16, +0.27]** |
+| A (7) | global G (@natural:train) | **+5.99 [+1.30, +11.15]** | **-3.41 [-4.31, -2.52]** | **-0.0090 [-0.0110, -0.0070]** | **+0.33 [+0.24, +0.42]** |
+| A (7) | G − class-tuned θ | +3.92 [-0.59, +9.08] | **-3.52 [-4.26, -2.89]** | **-0.0112 [-0.0139, -0.0086]** | +0.01 [-0.07, +0.10] |
+| B (6) | class-tuned θ | +0.52 [-0.09, +1.12] | **-3.86 [-4.82, -2.79]** | -0.0020 [-0.0053, +0.0011] | **+0.28 [+0.13, +0.46]** |
+| B (6) | P0 global θ | +0.48 [-0.18, +1.14] | **-3.91 [-4.96, -2.94]** | -0.0027 [-0.0063, +0.0006] | **+0.28 [+0.14, +0.46]** |
+| B (6) | global G (@natural:train) | -0.84 [-1.74, +0.10] | **-5.46 [-6.78, -3.99]** | -0.0043 [-0.0096, +0.0015] | **+0.37 [+0.19, +0.55]** |
+| B (6) | G − class-tuned θ | **-1.36 [-2.31, -0.55]** | -1.61 [-3.37, +0.16] | -0.0023 [-0.0094, +0.0053] | +0.09 [-0.02, +0.19] |
+| D (6) | class-tuned θ | **+0.89 [+0.27, +1.50]** | +0.26 [-2.31, +3.78] | +0.0024 [-0.0008, +0.0062] | **+0.55 [+0.29, +0.87]** |
+| D (6) | P0 global θ | **+0.80 [+0.16, +1.37]** | +0.53 [-1.79, +3.88] | +0.0012 [-0.0007, +0.0028] | **+0.39 [+0.25, +0.54]** |
+| D (6) | global G (@natural:train) | +1.27 [-0.78, +4.07] | **-5.55 [-8.86, -2.99]** | **-0.0601 [-0.1329, -0.0060]** | -1.83 [-5.62, +0.10] |
+| D (6) | G − class-tuned θ | +0.38 [-1.62, +2.87] | **-5.81 [-10.28, -1.53]** | **-0.0625 [-0.1382, -0.0064]** | **-2.38 [-6.50, -0.24]** |
+
+![E23 confirm](docs/img/p1/e23_confirm.png)
+
+* Gate bookkeeping: the first run of the gate check counted class C (report-only, no confirm
+  clips) as "worse than tier-only", because the mean over zero clips is undefined. C was excluded
+  from every statistical test before E20, so the script now marks it "not tested". Gate C is
+  tier-only, so its single report-only clip is unchanged by the gate in any case. Nothing else
+  changed, and the confirm split was not re-run.
+
+### P1 verdicts
+
+| # | Hypothesis | Verdict |
+|---|---|---|
+| H1 | Class A: the learned `G` beats the class-tuned sharpening-only θ (confirmatory) | **not confirmed.** On the 7 confirm clips, 0 of 3 judges have a CI above 0. SSIMULACRA2 is −3.5 [−4.3, −2.9] and DISTS −0.011 [−0.014, −0.009], both in all 3 seeds. XPSNR ties (+0.01). `G` still raises the objective (composite +6.0 over tier-only, against +2.1 for the θ), so its gain is in LPIPS, the metric it was trained on |
+| H2 | Class B: `G` does not beat the sharpening-only θ (exploratory) | **supported.** `G` − θ: composite −1.4 (CI below 0), SSIMULACRA2 −1.6, DISTS and XPSNR tie. On B, sharpening itself lowers SSIMULACRA2 (−3.9 vs tier-only) |
+| H3 | Classes C and D: every filter, `G` included, is worse than tier-only (exploratory) | **partly supported, D only.** The learned `G` damages D (SSIMULACRA2 −5.6, DISTS −0.060, XPSNR −1.8 vs tier-only). Mild sharpening does not (XPSNR +0.55, SSIMULACRA2 and DISTS tie). **Not testable for C** (n = 1, report-only) |
+| Gate | Sharpening-only θ on A, tier-only on B, C, D (chosen on dev) | **accepted.** No tested class is below tier-only on SSIMULACRA2 or XPSNR. Over all confirm clips, the gate ties or beats the global θ on SSIMULACRA2 (+1.0) and DISTS (+0.0007), both CIs spanning 0. It loses on XPSNR (−0.18, CI below 0) |
+
+**Result.** Following the plan's rule for a failed H1, this is reported as a negative result: on
+this black box, the gain an uploader can get beyond the tier trick comes from simple sharpening,
+not from a learned `G`.
+* The class-tuned sharpening-only θ helps natural low-motion content (class A: DISTS and XPSNR
+  up, SSIMULACRA2 flat).
+* It should be switched off on dense texture (class B: SSIMULACRA2 −3.9).
+* The learned `G` wins only on its own training metric.
+
+Because H1 failed, no new class is searched for on the confirm split.
+
+## 8. Addendum: the P1 recipe on `sim:ugc_av1` (exploratory, E14 applied to P1)
+
+Run overnight after P1 (`scripts/run_p1.sh e14`). The question is whether P1's accepted gate
+transfers to the second simulated platform: sharpening-only θ on class A, tier-only elsewhere.
+`ugc_av1` serves AV1 for ≥ 1440p uploads, has no ingest denoise and caps the rate at 1800 kbps.
+It uses the same frozen classes and splits, and **changes no P1 verdict**.
+* "Tuned on ugc_strict": the P1 class θ re-evaluated on ugc_av1 (`vreg rescore --platform`).
+* "Tuned on ugc_av1": a new 15-trial sharpening-only GP-BO per class on ugc_av1's train clips,
+  using the same objective (`composite`).
+
+Same frozen classes and splits; AV1 tier at ×2 and no ingest denoise. Gain over ugc_av1 tier-only on each class's dev + confirm clips (neither θ was tuned on them), mean [95 % CI over clips]. The confirm split was already used once in E23; nothing here changes a P1 verdict.
+
+* A, class θ tuned on ugc_strict: unsharp 1.06, size 5
+* A, class θ tuned on ugc_av1: unsharp 2.00, size 3
+* B, class θ tuned on ugc_strict: unsharp 0.85, size 5
+* B, class θ tuned on ugc_av1: unsharp 0.68, size 5
+* D, class θ tuned on ugc_strict: unsharp 1.05, size 5
+* D, class θ tuned on ugc_av1: unsharp 0.85, size 5
+
+| class | configuration | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|
+| A (14) | P0 global θ (ugc_strict) | +0.43 [-1.17, +1.57] | -2.13 [-5.85, +0.48] | -0.0019 [-0.0065, +0.0011] | +0.12 [-0.06, +0.25] |
+| A (14) | class θ tuned on ugc_strict | +0.57 [-1.20, +1.76] | -2.43 [-6.32, +0.07] | -0.0008 [-0.0058, +0.0024] | +0.20 [-0.00, +0.35] |
+| A (14) | class θ tuned on ugc_av1 | +0.13 [-1.95, +1.62] | -3.18 [-7.96, +0.15] | -0.0026 [-0.0087, +0.0017] | +0.15 [-0.09, +0.33] |
+| A (14) | ugc_av1-tuned − ugc_strict-tuned θ | **-0.44 [-0.86, -0.10]** | -0.75 [-1.86, +0.10] | **-0.0017 [-0.0030, -0.0007]** | **-0.06 [-0.11, -0.01]** |
+| B (12) | P0 global θ (ugc_strict) | +0.06 [-3.08, +4.02] | -3.89 [-10.00, +2.51] | -0.0010 [-0.0098, +0.0112] | +0.09 [-0.35, +0.61] |
+| B (12) | class θ tuned on ugc_strict | -0.30 [-1.43, +0.83] | **-4.32 [-6.61, -2.08]** | -0.0029 [-0.0065, +0.0003] | +0.04 [-0.12, +0.21] |
+| B (12) | class θ tuned on ugc_av1 | -1.23 [-3.20, +0.54] | **-5.54 [-9.32, -2.31]** | -0.0037 [-0.0086, +0.0006] | -0.09 [-0.35, +0.14] |
+| B (12) | ugc_av1-tuned − ugc_strict-tuned θ | -0.93 [-3.21, +1.03] | -1.22 [-5.29, +1.95] | -0.0008 [-0.0073, +0.0055] | -0.13 [-0.42, +0.10] |
+| D (12) | P0 global θ (ugc_strict) | +0.14 [-1.03, +1.10] | -0.96 [-3.66, +1.47] | -0.0039 [-0.0102, +0.0004] | **+0.28 [+0.05, +0.53]** |
+| D (12) | class θ tuned on ugc_strict | +0.11 [-1.09, +1.19] | -1.87 [-5.05, +1.02] | **-0.0045 [-0.0106, -0.0000]** | **+0.30 [+0.07, +0.54]** |
+| D (12) | class θ tuned on ugc_av1 | +0.19 [-0.79, +1.06] | -0.94 [-3.34, +1.34] | -0.0029 [-0.0067, +0.0000] | **+0.31 [+0.09, +0.55]** |
+| D (12) | ugc_av1-tuned − ugc_strict-tuned θ | +0.08 [-0.25, +0.43] | **+0.93 [+0.04, +1.95]** | +0.0016 [-0.0001, +0.0039] | +0.01 [-0.07, +0.09] |
+
+Gate check on ugc_av1 (confirm clips; the P1 gate table with its θ either transferred or tuned on ugc_av1): is any class below ugc_av1 tier-only on SSIMULACRA2 or XPSNR?
+
+| class | gate | θ source | SSIMULACRA2 gate − tier | XPSNR gate − tier |
+|---|---|---|---|---|
+| A | θ | class θ tuned on ugc_strict | -1.18 [-3.14, +0.12] | **+0.25 [+0.18, +0.32]** |
+| A | θ | class θ tuned on ugc_av1 | -1.95 [-5.80, +0.24] | **+0.20 [+0.06, +0.32]** |
+| B | tier-only | – | +0.00 | +0.00 |
+| D | tier-only | – | +0.00 | +0.00 |
+
+![E14 addendum](docs/img/p1/e14_av1.png)
+
+* **The P1 gate does not transfer.** On ugc_av1's confirm clips, class A sharpening is below
+  tier-only on SSIMULACRA2 on average (−1.2 with the transferred θ, −2.0 with the native one; CIs
+  span 0). This breaks the gate's "not below tier-only" criterion. XPSNR still improves (+0.2).
+* **Why.** Per clip, the transferred A θ is roughly neutral on most class A clips (median
+  SSIMULACRA2 change about +0.2). It fails badly on the two clips where AV1 tier-only is already
+  rate-starved: controlled_burn_10 −25.0 (tier-only SSIMULACRA2 31.5) and tractor_0 −6.7 (34.9).
+  Under the 1800 kbps cap, the extra high-frequency energy costs more bits than it restores. A
+  safe gate on this platform would need a rate-headroom feature, not only content features.
+* **Tuning on the objective does not fix it.** The native ugc_av1 θ for A is stronger (unsharp
+  2.0, 3×3) and is *worse* than the transferred one on every judge (composite −0.44, DISTS
+  −0.0017, XPSNR −0.06, all CIs below 0). `composite` again rewards more sharpening than the
+  judges accept.
+* **B:** sharpening lowers SSIMULACRA2 on both platforms (−4.3 transferred, −5.5 native).
+* **D:** mild sharpening is again harmless to helpful (XPSNR +0.3); the native θ is slightly
+  better than the transferred one on SSIMULACRA2 (+0.9).
+* For P2 this means the sharpening recipe must be validated, and its gate re-checked, on each
+  real platform.
+
+### Diagnostic after P1: is `G` short of data, or is the method the limit?
+
+`G` vs the class-tuned sharpening-only θ on class A, mean over clips of the 3-seed mean, on
+`G`'s own **training** clips and on the dev clips. Both `G` and θ were tuned on `@A:train`; the
+global `G` was also trained on B's train clips. Re-scored with `vreg rescore … --tag train`.
+
+| `G` | clips | composite | LPIPS | SSIMULACRA2 | DISTS | XPSNR |
+|---|---|---|---|---|---|---|
+| specialist A | A train (13) | −3.98 | −0.02 | −10.22 | −0.0342 | −0.10 |
+| specialist A | A dev (7) | −1.51 | −0.02 | −7.77 | −0.0452 | −0.37 |
+| global | A train (13) | −2.16 | −0.01 | −6.21 | −0.0089 | +0.16 |
+| global | A dev (7) | +0.46 | +0.01 | −4.28 | −0.0072 | +0.10 |
+
+* **`G` loses to θ even on the clips it was trained on, and by more than on unseen clips.** It
+  loses there even on LPIPS, its own loss, measured on the real (simulated) platform. This is
+  the opposite of overfitting, so more training clips are unlikely to close the gap. Doubling
+  the data (global `G`, 26 clips) narrows it but leaves SSIMULACRA2 −4 to −6.
+* The limit is therefore the method: `G` is optimised through the emulator, while θ is tuned
+  directly on the black box. Its predicted gain does not survive the real channel, although the
+  emulator's pixel PSNR on `G`'s outputs is 31–36 dB. The next experiment for `G` is the
+  real-forward / surrogate-backward estimator (E7), not a larger clip set.
+
+## 9. E7 results: a real-anchored estimator for `G`
+
+Plan, pre-registered before any run: [`docs/E7-plan.md`](docs/E7-plan.md).
+* Training runs in phases. Each phase starts with one black-box call per training clip
+  (`sim:ugc_strict`; no online platform). The loss then uses `E(G(X)) + stopgrad(y_real − E(G_k(X)))`.
+* `E` is the frozen P1 emulator of the same seed. Clips, loss, trust region, steps and seeds
+  are those of the P1 global `G`, so only the estimator differs.
+* E7a uses 6 anchors (every 250 steps), E7b 1 anchor (at identity), each over 3 seeds
+  (`scripts/run_e7.sh`, `scripts/e7_tables.py`).
+
+**`G` − class-tuned sharpening-only θ, class A dev (7 clips), mean [95 % CI over clips]:**
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G (emulator forward) | 3 | +0.46 [-1.45, +2.14] | +0.0146 [-0.0156, +0.0474] | **-4.28 [-5.21, -3.24]** | **-0.0072 [-0.0138, -0.0005]** | +0.10 [-0.56, +0.84] |
+| E7a: 6 real anchors | 3 | -0.38 [-2.15, +1.46] | +0.0076 [-0.0036, +0.0183] | **-0.84 [-1.39, -0.25]** | **+0.0048 [+0.0003, +0.0093]** | **-0.50 [-0.86, -0.14]** |
+| E7b: 1 real anchor | 3 | -0.90 [-2.46, +0.64] | -0.0043 [-0.0170, +0.0070] | **-2.13 [-2.91, -1.32]** | **-0.0095 [-0.0159, -0.0031]** | **-1.02 [-1.51, -0.48]** |
+
+**The same on `G`'s own training clips (class A train, 13 clips):**
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G (emulator forward) | 3 | **-2.16 [-4.07, -0.51]** | -0.0054 [-0.0308, +0.0184] | **-6.21 [-8.08, -4.56]** | **-0.0089 [-0.0150, -0.0028]** | +0.16 [-0.11, +0.43] |
+| E7a: 6 real anchors | 3 | **-2.27 [-3.43, -1.09]** | -0.0097 [-0.0193, +0.0008] | **-1.96 [-3.13, -0.52]** | -0.0003 [-0.0032, +0.0027] | **-0.63 [-0.88, -0.38]** |
+| E7b: 1 real anchor | 3 | **-2.93 [-4.10, -1.78]** | **-0.0188 [-0.0269, -0.0101]** | **-4.03 [-5.39, -2.46]** | **-0.0068 [-0.0105, -0.0028]** | **-0.90 [-1.24, -0.62]** |
+
+**Paired, E7 − P1 global `G` (class A dev):**
+
+| configuration | composite | lpips | ssimulacra2 | dists | xpsnr | judges with CI above 0 |
+|---|---|---|---|---|---|---|
+| E7a: 6 real anchors | -0.84 [-2.05, +0.31] | -0.0070 [-0.0390, +0.0219] | **+3.44 [+2.64, +4.18]** | **+0.0120 [+0.0078, +0.0159]** | **-0.60 [-1.08, -0.17]** | 2/3 |
+| E7b: 1 real anchor | **-1.35 [-2.44, -0.37]** | -0.0189 [-0.0463, +0.0057] | **+2.15 [+1.51, +2.81]** | -0.0023 [-0.0046, +0.0006] | **-1.12 [-1.41, -0.79]** | 1/3 |
+
+**Gain over tier-only on dev, per class** (for the gate):
+
+| configuration | class | SSIMULACRA2 | DISTS | XPSNR |
+|---|---|---|---|---|
+| class-tuned θ | A | +0.04 [−0.66, +0.71] | +0.0012 [−0.0003, +0.0025] | **+0.41 [+0.31, +0.50]** |
+| E7a | A | **−0.81 [−1.22, −0.52]** | **+0.0060 [+0.0016, +0.0104]** | −0.09 [−0.44, +0.26] |
+| P1 global `G` | A | **−4.25 [−4.86, −3.71]** | −0.0060 [−0.0122, +0.0008] | +0.50 [−0.16, +1.25] |
+| class-tuned θ | B | **−2.85 [−3.95, −1.49]** | +0.0006 [−0.0008, +0.0019] | **+0.28 [+0.20, +0.37]** |
+| E7a | B | **−0.90 [−1.29, −0.44]** | **+0.0035 [+0.0001, +0.0068]** | **−0.02 [−0.03, −0.00]** |
+| E7a | D | **−3.23 [−6.39, −0.77]** | **−0.0661 [−0.1272, −0.0147]** | **−3.78 [−7.96, −0.34]** |
+
+![E7 dev](docs/img/e7/e7_dev.png)
+
+**Budget in black-box calls:**
+
+| configuration | training (anchors) | validation per run |
+|---|---|---|
+| E7a: 6 real anchors | 156 | 45 |
+| E7b: 1 real anchor | 26 | 45 |
+| P1 global G | 0 (forward from the emulator only) | 45 |
+| emulator E (shared by every row) | 156 (26 clips × 6 variants) | – |
+| class-tuned θ for A | 195 (15 trials × 13 clips) | – |
+
+**Decision (pre-registered rule): "helps".** E7a beats the P1 `G` on 2 of 3 judges, with CIs
+above 0: SSIMULACRA2 +3.4 and DISTS +0.012. It does not meet the H1 criteria against the
+class-tuned θ: SSIMULACRA2 −0.84, DISTS +0.0048 (CI above 0, 3/3 seeds), XPSNR −0.50. So the
+confirm split was not evaluated. By the plan, E9 is worth one overnight run with the E7
+estimator.
+
+* **The diagnosis is confirmed.** Most of the P1 `G`'s loss was the emulator gap: anchoring the
+  forward value on the black box removes about 80 % of its SSIMULACRA2 deficit on A (−4.3 → −0.8
+  vs θ). E7a's train-clip deficit also shrinks (−6.2 → −2.0).
+* **What is left is a trade-off, not a failure.** E7a is the first `G` that beats tier-only on
+  DISTS on both A and B, and it is better than θ on DISTS. It gives up the XPSNR that sharpening
+  buys, and stays slightly below tier-only on SSIMULACRA2 (−0.8).
+* **More anchors help.** With one anchor (E7b, 26 calls) the gain over the P1 `G` is about
+  half (SSIMULACRA2 +2.2, DISTS no change).
+* **Graphics and animation (D) are still damaged** by every `G`. The gate keeps them tier-only.
+* **Cost.** E7a needs 156 anchor calls on top of the emulator's 156 pairs: 312 black-box calls,
+  against 195 for the class-tuned θ. On an online platform each call is an upload. The learned
+  route is therefore not a candidate for P2's 15–20-upload budget, whatever E9 shows. Its value
+  is in explaining *why* learned pre-processing loses (the emulator gap), not as a practical
+  recipe.
+
+### 8b. The rest of E14 (exploratory): back to ugc_strict, and P0's full θ both ways
+
+Run unattended after E9 (`scripts/run_p1.sh e14r`). It uses the same frozen classes and splits
+and changes no verdict.
+* The ugc_av1-tuned class θ is evaluated on ugc_strict.
+* P0's full GP-BO θ (`strict_gp`, `av1_gp`; contrast, saturation, grain, sharpening, ×2) is
+  evaluated on the P1 clips, both on its own platform and on the other one.
+
+Gain over the target platform's tier-only, on each class's dev + confirm clips, mean [95 % CI over clips]. Nothing here changes a P1 verdict.
+
+| target platform | class | configuration | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| ugc_strict | A (14) | class θ tuned on ugc_strict (native) | **+2.02 [+1.60, +2.43]** | +0.08 [-0.52, +0.63] | **+0.0017 [+0.0005, +0.0028]** | **+0.36 [+0.30, +0.43]** |
+| ugc_strict | A (14) | class θ tuned on ugc_av1 (moved) | **+1.82 [+1.44, +2.20]** | +0.04 [-0.45, +0.49] | +0.0010 [-0.0003, +0.0022] | **+0.37 [+0.30, +0.43]** |
+| ugc_strict | A (14) | P0 full θ tuned on ugc_strict (native) | **+1.73 [+1.36, +2.15]** | **-5.37 [-6.34, -4.54]** | **-0.0022 [-0.0042, -0.0005]** | **-4.64 [-5.91, -3.30]** |
+| ugc_strict | A (14) | P0 full θ tuned on ugc_av1 (moved) | **+1.88 [+1.48, +2.27]** | **-1.61 [-1.98, -1.28]** | -0.0004 [-0.0018, +0.0009] | **-2.38 [-3.19, -1.55]** |
+| ugc_av1 | A (14) | P0 full θ tuned on ugc_av1 (native) | +0.34 [-1.25, +1.50] | **-4.65 [-8.51, -1.86]** | -0.0033 [-0.0087, +0.0002] | **-2.51 [-3.34, -1.67]** |
+| ugc_av1 | A (14) | P0 full θ tuned on ugc_strict (moved) | **+0.78 [+0.19, +1.38]** | **-6.36 [-7.62, -5.26]** | **-0.0030 [-0.0048, -0.0016]** | **-4.75 [-6.05, -3.39]** |
+| ugc_strict | B (12) | class θ tuned on ugc_strict (native) | **+0.67 [+0.23, +1.06]** | **-3.35 [-4.19, -2.43]** | -0.0007 [-0.0027, +0.0011] | **+0.28 [+0.20, +0.38]** |
+| ugc_strict | B (12) | class θ tuned on ugc_av1 (moved) | **+0.79 [+0.42, +1.14]** | **-2.68 [-3.38, -1.89]** | -0.0002 [-0.0017, +0.0013] | **+0.27 [+0.19, +0.36]** |
+| ugc_strict | B (12) | P0 full θ tuned on ugc_strict (native) | +0.80 [-0.93, +2.13] | **-3.77 [-5.72, -2.22]** | -0.0016 [-0.0053, +0.0019] | **-1.56 [-2.35, -0.86]** |
+| ugc_strict | B (12) | P0 full θ tuned on ugc_av1 (moved) | **+1.27 [+0.61, +1.83]** | **-3.47 [-4.20, -2.78]** | -0.0015 [-0.0038, +0.0004] | **-0.52 [-0.96, -0.13]** |
+| ugc_av1 | B (12) | P0 full θ tuned on ugc_av1 (native) | -1.90 [-3.94, +0.12] | **-8.34 [-12.34, -4.72]** | **-0.0090 [-0.0150, -0.0035]** | **-0.85 [-1.23, -0.50]** |
+| ugc_av1 | B (12) | P0 full θ tuned on ugc_strict (moved) | +1.96 [-2.14, +6.55] | -0.52 [-6.71, +6.22] | +0.0034 [-0.0077, +0.0173] | **-1.19 [-2.14, -0.19]** |
+| ugc_strict | D (12) | class θ tuned on ugc_strict (native) | **+1.09 [+0.41, +1.70]** | -0.10 [-2.38, +2.12] | +0.0012 [-0.0019, +0.0040] | **+0.53 [+0.29, +0.78]** |
+| ugc_strict | D (12) | class θ tuned on ugc_av1 (moved) | **+0.95 [+0.42, +1.44]** | +0.66 [-0.96, +2.49] | +0.0006 [-0.0013, +0.0021] | **+0.45 [+0.26, +0.66]** |
+| ugc_strict | D (12) | P0 full θ tuned on ugc_strict (native) | -2.88 [-6.99, +0.94] | **-10.49 [-16.95, -4.48]** | **-0.0119 [-0.0262, -0.0004]** | **-7.32 [-11.74, -3.74]** |
+| ugc_strict | D (12) | P0 full θ tuned on ugc_av1 (moved) | **+0.99 [+0.23, +1.73]** | **-4.26 [-7.69, -1.24]** | -0.0027 [-0.0078, +0.0023] | **-4.96 [-8.71, -2.17]** |
+| ugc_av1 | D (12) | P0 full θ tuned on ugc_av1 (native) | +0.23 [-0.89, +1.34] | **-5.19 [-8.96, -1.64]** | **-0.0065 [-0.0119, -0.0014]** | **-5.13 [-9.08, -2.21]** |
+| ugc_av1 | D (12) | P0 full θ tuned on ugc_strict (moved) | -3.12 [-7.06, +0.29] | **-9.94 [-16.59, -3.32]** | **-0.0116 [-0.0232, -0.0021]** | **-7.56 [-12.22, -3.77]** |
+
+* **The sharpening-only θ moves well onto ugc_strict.** The θ tuned on ugc_av1 keeps nearly all
+  of the native θ's gain on A (composite +1.8 vs +2.0, XPSNR +0.37 vs +0.36, SSIMULACRA2 flat). In
+  the other direction (§8) it failed on rate-starved AV1 clips. The asymmetry comes from the
+  **target platform's rate headroom**, not from where θ was tuned.
+* **P0's full θ is bad for the judges on every platform and every class, native or moved.**
+  SSIMULACRA2 is −1.6 to −10.5 and XPSNR −0.5 to −7.6, while `composite` stays positive in most
+  cells. This extends P0's metric-hacking finding to 66 more clips and to both platforms.
+  Contrast, saturation and grain are what hurt. The moved ugc_av1 full θ, which has no grain, is
+  less harmful on ugc_strict than ugc_strict's own full θ.
+
+## 10. E9 results: a learned `G` on top of the class-tuned θ
+
+Plan, pre-registered before any run: [`docs/E9-plan.md`](docs/E9-plan.md).
+* The class A θ (×2, unsharp 1.06, 5×5) is moved into the channel `platform ∘ θ_A`, so at
+  `G = identity` the output is θ_A's.
+* A new emulator of that channel is trained (156 black-box calls, shared by the seeds).
+* `G` is trained with the E7 estimator (6 anchors), with everything else as in E7a; 3 seeds.
+
+#### G − class-tuned θ, class A dev (7 clips)
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G | 3 | +0.46 [-1.45, +2.14] | +0.0146 [-0.0156, +0.0474] | **-4.28 [-5.21, -3.24]** | **-0.0072 [-0.0138, -0.0005]** | +0.10 [-0.56, +0.84] |
+| E7a (6 anchors) | 3 | -0.38 [-2.15, +1.46] | +0.0076 [-0.0036, +0.0183] | **-0.84 [-1.39, -0.25]** | **+0.0048 [+0.0003, +0.0093]** | **-0.50 [-0.86, -0.14]** |
+| E9: G on top of θ_A (6 anchors) | 3 | +1.61 [-0.13, +3.03] | **+0.0220 [+0.0018, +0.0431]** | **-2.24 [-2.57, -1.97]** | +0.0014 [-0.0055, +0.0092] | -0.19 [-0.73, +0.45] |
+
+#### G − class-tuned θ, class A train (G's training clips) (13 clips)
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G | 3 | **-2.16 [-4.07, -0.51]** | -0.0054 [-0.0308, +0.0184] | **-6.21 [-8.08, -4.56]** | **-0.0089 [-0.0150, -0.0028]** | +0.16 [-0.11, +0.43] |
+| E7a (6 anchors) | 3 | **-2.27 [-3.43, -1.09]** | -0.0097 [-0.0193, +0.0008] | **-1.96 [-3.13, -0.52]** | -0.0003 [-0.0032, +0.0027] | **-0.63 [-0.88, -0.38]** |
+| E9: G on top of θ_A (6 anchors) | 3 | -0.31 [-1.42, +0.79] | **+0.0092 [+0.0001, +0.0183]** | **-3.95 [-4.97, -3.04]** | +0.0000 [-0.0031, +0.0034] | -0.16 [-0.38, +0.07] |
+
+#### G − class-tuned θ, class B dev (6 clips)
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G | 3 | **-0.97 [-1.85, -0.10]** | +0.0149 [-0.0031, +0.0327] | **-2.87 [-4.64, -1.24]** | -0.0002 [-0.0092, +0.0090] | **+0.11 [+0.05, +0.16]** |
+| E7a (6 anchors) | 3 | **-1.14 [-1.49, -0.68]** | **-0.0098 [-0.0181, -0.0016]** | **+1.95 [+0.29, +3.33]** | +0.0029 [-0.0002, +0.0059] | **-0.30 [-0.39, -0.21]** |
+| E9: G on top of θ_A (6 anchors) | 3 | +0.09 [-0.37, +0.57] | **+0.0094 [+0.0044, +0.0161]** | **-2.79 [-3.72, -1.85]** | +0.0025 [-0.0014, +0.0068] | **+0.03 [+0.00, +0.06]** |
+
+#### G − class-tuned θ, class D dev (6 clips)
+
+| configuration | seeds | composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|---|
+| P1 global G | 3 | **-3.35 [-6.30, -0.31]** | **-0.0731 [-0.1173, -0.0352]** | **-5.20 [-7.45, -3.12]** | **-0.0844 [-0.1378, -0.0339]** | **-4.30 [-8.74, -0.54]** |
+| E7a (6 anchors) | 3 | **-2.88 [-5.62, -0.23]** | **-0.0531 [-0.0929, -0.0235]** | **-2.77 [-4.17, -1.34]** | **-0.0661 [-0.1224, -0.0177]** | **-4.28 [-8.76, -0.72]** |
+| E9: G on top of θ_A (6 anchors) | 3 | -1.75 [-4.81, +1.49] | **-0.0590 [-0.0994, -0.0241]** | **-3.81 [-7.03, -0.95]** | **-0.0798 [-0.1376, -0.0276]** | **-4.21 [-8.71, -0.44]** |
+
+#### Paired: E9 − E7a (class A dev)
+
+| composite | lpips | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|
+| **+1.99 [+1.30, +2.72]** | **+0.0144 [+0.0001, +0.0300]** | **-1.39 [-1.98, -0.81]** | -0.0034 [-0.0086, +0.0020] | **+0.32 [+0.03, +0.63]** |
+
+
+**Decision (pre-registered rule): "does not add".** On A dev, E9 − θ_A gives SSIMULACRA2 −2.24
+[−2.57, −1.97] (0/3 seeds positive), DISTS +0.0014 (CI spans 0) and XPSNR −0.19 (CI spans 0).
+The confirm split was not used. **By the plan, the learned-`G` line is closed.**
+
+* **`G` again optimises its own loss.** On top of θ it improves LPIPS (+0.022, CI above 0) and
+  `composite` (+1.6) over θ, and pays in SSIMULACRA2, on its training clips too (−3.9). This is
+  the same pattern as P1's `G`, now with the emulator gap closed by the anchors (E7) and with θ as
+  the starting point.
+* **Starting from θ did not combine the two strengths.** Paired against E7a, E9 recovers XPSNR
+  (+0.32) but loses SSIMULACRA2 (−1.39).
+* **Budget:** 156 emulator pairs, plus 156 anchors per seed, plus 45 validation calls per seed.
+
+### Conclusion of the learned-`G` line (P1, E7, E9)
+
+On this black box, a learned pre-compensation `G` does not beat a class-tuned sharpening-only θ
+on any content class.
+1. **P1:** the plain `G` (emulator forward) loses clearly, even on its own training clips.
+2. **E7:** most of that loss is the emulator gap. Anchoring the forward value on the black box
+   closes about 80 % of it.
+3. **E7 and E9:** what remains is that `G` trades the independent judges (SSIMULACRA2, and
+   XPSNR or DISTS) for LPIPS, its training loss. Starting from θ does not change this.
+4. **Cost:** the learned route costs 300–500 black-box calls, against 195 for the θ. That is far
+   beyond an online-platform budget.
+
+This is the negative result for the paper, together with its explanation: emulator exploitation
+first, metric specialisation second.
+
+## 11. E11 results: common creator recipes as a baseline
+
+Plan, pre-registered before the run: [`docs/E11-plan.md`](docs/E11-plan.md).
+* Five fixed recipes, untuned, on all 77 clips with the judges (`scripts/e11.py`); black box
+  `sim:ugc_strict`.
+* The near-lossless default upload (CRF 10, median ≈ 80–140 Mbps at 1440p) is compared with
+  YouTube's recommended 16 Mbps for 1440p.
+
+#### Recipes vs tier-only (CRF 10), every tested clip per class
+
+| class | recipe | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|
+| A (27) | ×2 + default unsharp 5×5 1.0 | **+1.92 [+1.58, +2.26]** | +0.07 [-0.66, +0.68] | **+0.0029 [+0.0016, +0.0045]** | **+0.47 [+0.37, +0.59]** |
+| A (27) | ×2 + mild unsharp 5×5 0.5 | **+1.56 [+1.34, +1.78]** | **+0.44 [+0.08, +0.76]** | **+0.0022 [+0.0013, +0.0031]** | **+0.28 [+0.22, +0.34]** |
+| A (27) | mild recipe at 16 Mbps | +0.09 [-0.23, +0.39] | **-1.47 [-1.88, -1.09]** | **-0.0037 [-0.0048, -0.0027]** | +0.05 [-0.00, +0.10] |
+| A (27) | tier-only at 16 Mbps | **-1.45 [-1.70, -1.22]** | **-1.91 [-2.23, -1.61]** | **-0.0055 [-0.0066, -0.0044]** | **-0.23 [-0.27, -0.19]** |
+| B (25) | ×2 + default unsharp 5×5 1.0 | **+0.80 [+0.47, +1.10]** | **-2.97 [-3.93, -2.00]** | -0.0011 [-0.0029, +0.0005] | **+0.36 [+0.30, +0.42]** |
+| B (25) | ×2 + mild unsharp 5×5 0.5 | **+0.92 [+0.75, +1.08]** | **-1.22 [-1.79, -0.65]** | +0.0003 [-0.0006, +0.0011] | **+0.25 [+0.19, +0.33]** |
+| B (25) | mild recipe at 16 Mbps | **-0.45 [-0.80, -0.13]** | **-2.32 [-2.90, -1.75]** | **-0.0056 [-0.0073, -0.0040]** | +0.00 [-0.07, +0.09] |
+| B (25) | tier-only at 16 Mbps | **-1.46 [-1.76, -1.19]** | **-1.41 [-1.71, -1.11]** | **-0.0065 [-0.0083, -0.0049]** | **-0.26 [-0.31, -0.21]** |
+| D (24) | ×2 + default unsharp 5×5 1.0 | **+1.34 [+0.86, +1.81]** | +0.83 [-0.66, +2.35] | **+0.0023 [+0.0005, +0.0040]** | **+0.48 [+0.35, +0.61]** |
+| D (24) | ×2 + mild unsharp 5×5 0.5 | **+1.21 [+0.93, +1.49]** | **+1.33 [+0.39, +2.50]** | **+0.0019 [+0.0011, +0.0028]** | **+0.37 [+0.27, +0.48]** |
+| D (24) | mild recipe at 16 Mbps | **+0.48 [+0.04, +0.90]** | +0.72 [-0.38, +2.03] | -0.0001 [-0.0014, +0.0011] | **+0.23 [+0.10, +0.38]** |
+| D (24) | tier-only at 16 Mbps | **-0.74 [-1.10, -0.42]** | **-0.62 [-1.11, -0.14]** | **-0.0020 [-0.0030, -0.0011]** | **-0.10 [-0.17, -0.05]** |
+
+#### Q1: does tuning add? Class-tuned θ − recipe, dev + confirm clips (θ never saw them)
+
+| class | θ − recipe | composite | ssimulacra2 | dists | xpsnr | tuning adds? |
+|---|---|---|---|---|---|---|
+| A (14) | θ − ×2 + default unsharp 5×5 1.0 | **+0.25 [+0.12, +0.41]** | +0.04 [-0.09, +0.16] | **+0.0005 [+0.0001, +0.0008]** | +0.01 [-0.01, +0.03] | no (1 up, 0 down) |
+| A (14) | θ − ×2 + mild unsharp 5×5 0.5 | **+0.48 [+0.20, +0.75]** | -0.26 [-0.62, +0.10] | +0.0006 [-0.0001, +0.0014] | **+0.12 [+0.07, +0.17]** | no (1 up, 0 down) |
+| B (12) | θ − ×2 + default unsharp 5×5 1.0 | +0.08 [-0.03, +0.20] | **+0.63 [+0.43, +0.83]** | +0.0002 [-0.0008, +0.0011] | **-0.05 [-0.06, -0.04]** | no (1 up, 1 down) |
+| B (12) | θ − ×2 + mild unsharp 5×5 0.5 | -0.15 [-0.37, +0.06] | **-1.58 [-1.92, -1.22]** | -0.0006 [-0.0016, +0.0002] | **+0.07 [+0.04, +0.10]** | no (1 up, 1 down) |
+| D (12) | θ − ×2 + default unsharp 5×5 1.0 | +0.04 [-0.12, +0.20] | -0.31 [-0.98, +0.26] | +0.0005 [-0.0002, +0.0013] | +0.03 [-0.02, +0.10] | no (0 up, 0 down) |
+| D (12) | θ − ×2 + mild unsharp 5×5 0.5 | +0.10 [-0.57, +0.64] | -1.02 [-2.95, +0.26] | +0.0002 [-0.0021, +0.0023] | +0.12 [-0.06, +0.31] | no (0 up, 0 down) |
+
+* class A θ: unsharp 1.06, size 5
+* class B θ: unsharp 0.85, size 5
+* class D θ: unsharp 1.05, size 5
+
+#### Q2: the recommended upload bitrate (16 Mbps) vs near-lossless (CRF 10), every tested clip
+
+| class | comparison | composite | ssimulacra2 | dists | xpsnr | median upload Mbps |
+|---|---|---|---|---|---|---|
+| A (27) | tier-only at 16 Mbps − tier-only (CRF 10) | **-1.45 [-1.70, -1.22]** | **-1.91 [-2.23, -1.61]** | **-0.0055 [-0.0066, -0.0044]** | **-0.23 [-0.27, -0.19]** | 79 → 17 |
+| A (27) | mild recipe at 16 Mbps − ×2 + mild unsharp 5×5 0.5 | **-1.47 [-1.75, -1.21]** | **-1.92 [-2.25, -1.60]** | **-0.0059 [-0.0072, -0.0046]** | **-0.23 [-0.29, -0.18]** | 96 → 17 |
+| B (25) | tier-only at 16 Mbps − tier-only (CRF 10) | **-1.46 [-1.76, -1.19]** | **-1.41 [-1.71, -1.11]** | **-0.0065 [-0.0083, -0.0049]** | **-0.26 [-0.31, -0.21]** | 122 → 17 |
+| B (25) | mild recipe at 16 Mbps − ×2 + mild unsharp 5×5 0.5 | **-1.37 [-1.67, -1.09]** | **-1.10 [-1.43, -0.79]** | **-0.0059 [-0.0079, -0.0041]** | **-0.25 [-0.30, -0.20]** | 137 → 17 |
+| D (24) | tier-only at 16 Mbps − tier-only (CRF 10) | **-0.74 [-1.10, -0.42]** | **-0.62 [-1.11, -0.14]** | **-0.0020 [-0.0030, -0.0011]** | **-0.10 [-0.17, -0.05]** | 36 → 16 |
+| D (24) | mild recipe at 16 Mbps − ×2 + mild unsharp 5×5 0.5 | **-0.74 [-1.10, -0.43]** | **-0.61 [-0.99, -0.29]** | **-0.0021 [-0.0030, -0.0012]** | **-0.14 [-0.23, -0.07]** | 43 → 17 |
+
+#### Gate with a recipe (exploratory; confirm clips were used in P1)
+
+Recipe for class A chosen on train + dev: **×2 + mild unsharp 5×5 0.5** (3 judges positive over tier-only). Other classes tier-only.
+
+| class | SSIMULACRA2 gate − tier | XPSNR gate − tier |
+|---|---|---|
+| A | +0.25 [-0.24, +0.70] | **+0.19 [+0.14, +0.23]** |
+| B | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] |
+| D | +0.00 [+0.00, +0.00] | +0.00 [+0.00, +0.00] |
+
+| judge | gate − P0 global sharpening-only θ | gate − P1 gate (class θ on A) |
+|---|---|---|
+| ssimulacra2 | +1.09 [-0.31, +2.30] | +0.05 [-0.13, +0.26] |
+| dists | +0.0003 [-0.0010, +0.0019] | -0.0004 [-0.0009, +0.0000] |
+| xpsnr | **-0.22 [-0.33, -0.13]** | **-0.05 [-0.08, -0.02]** |
+
+**Recipe gate: accepted** by P1's criteria (every class ≥ tier-only on SSIMULACRA2 and XPSNR: yes; ≥ global θ on 2/3).
+
+
+![E11](docs/img/e11/e11.png)
+
+* **Q1: tuning adds nothing over ffmpeg's default unsharp** (5×5, 1.0), in any class. On A, the
+  tuned θ beats it only on DISTS, by +0.0005 (SSIMULACRA2 +0.04, XPSNR +0.01, CIs spanning 0).
+  GP-BO, with 195 black-box calls, re-discovered the default: θ_A is unsharp 1.06, 5×5.
+* **The mild recipe** (5×5, 0.5) is the only configuration so far that beats tier-only on all
+  three judges in class A (SSIMULACRA2 +0.44, DISTS +0.0022, XPSNR +0.28, every CI above 0).
+  It does the same in class D. On B it still costs SSIMULACRA2 (−1.2).
+* **A gate with the mild recipe on A and tier-only elsewhere is accepted** by P1's criteria on the
+  confirm clips. Against the P1 gate (class-tuned θ on A) it is equal within noise: SSIMULACRA2
+  +0.05, DISTS −0.0004, XPSNR −0.05. **The practical recipe therefore needs no tuning uploads.**
+* **Q2: the upload bitrate matters more than any filter.** Uploading at the recommended 16 Mbps
+  instead of near-lossless costs SSIMULACRA2 −1.9 on A, −1.4 on B and −0.6 on D, with every judge
+  worse. That is more than the best sharpening gains (+0.44). The mild recipe at 16 Mbps is below
+  plain near-lossless tier-only on A.
+* **Caveats.**
+  * In the simulator, the platform re-encodes the upload, so upload quality carries straight
+    through. Whether a real platform accepts and uses an 80–140 Mbps 1440p upload must be
+    checked (E15).
+  * The D result is exploratory: the P1 gate keeps D tier-only, based on its dev data.
+
+## 12. E10 results (reframed): how many clips does a per-platform validation need?
+
+Plan, pre-registered before the run: [`docs/E10-plan.md`](docs/E10-plan.md).
+* The backlog's E10 (tuner budgets, TuRBO, warm start) was reframed after E11 showed that
+  tuning adds nothing over a fixed recipe. An online platform needs only a validation: whether
+  to switch the recipe on.
+* Decision rule: switch the recipe on iff its mean gain over tier-only on the validation clips
+  is ≥ 0 on both SSIMULACRA2 and XPSNR. The truth is that rule on all of a class's clips.
+* 10,000 subsets per size, on `sim:ugc_strict` (E11 data) and `sim:ugc_av1` (run for E10:
+  tier-only and both recipes on all clips). "hard-half" takes ⌈n/2⌉ clips from the class's top
+  third by SI, which is known before any upload (`scripts/e10.py`).
+
+| platform | class | recipe | truth (all clips) | mean gain SSIMULACRA2 / XPSNR | strategy | n=2 | n=3 | n=4 | n=6 | n=8 | n=10 | n=12 | n=16 | n for ≤ 10 % | n for ≤ 5 % |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ugc_strict | A | mild unsharp 5×5 0.5 | on | +0.44 / +0.28 | random | 23 % | 16 % | 16 % | 12 % | 7 % | 3 % | 1 % | 0 % | 8 | 10 |
+| ugc_strict | A | mild unsharp 5×5 0.5 | on | +0.44 / +0.28 | hard-half | 21 % | 11 % | 15 % | 10 % | 6 % | 2 % | 1 % | 0 % | 6 | 10 |
+| ugc_strict | A | default unsharp 5×5 1.0 | on | +0.07 / +0.47 | random | 40 % | 40 % | 39 % | 41 % | 42 % | 42 % | 43 % | 44 % | > 16 | > 16 |
+| ugc_strict | A | default unsharp 5×5 1.0 | on | +0.07 / +0.47 | hard-half | 35 % | 43 % | 39 % | 43 % | 45 % | 46 % | 48 % | 50 % | > 16 | > 16 |
+| ugc_strict | B | mild unsharp 5×5 0.5 | off | -1.22 / +0.25 | random | 12 % | 6 % | 4 % | 1 % | 0 % | 0 % | 0 % | 0 % | 3 | 4 |
+| ugc_strict | B | mild unsharp 5×5 0.5 | off | -1.22 / +0.25 | hard-half | 6 % | 2 % | 1 % | 0 % | 0 % | 0 % | 0 % | 0 % | 2 | 3 |
+| ugc_strict | B | default unsharp 5×5 1.0 | off | -2.97 / +0.36 | random | 7 % | 1 % | 0 % | 0 % | 0 % | 0 % | 0 % | 0 % | 2 | 3 |
+| ugc_strict | B | default unsharp 5×5 1.0 | off | -2.97 / +0.36 | hard-half | 3 % | 0 % | 0 % | 0 % | 0 % | 0 % | 0 % | 0 % | 2 | 2 |
+| ugc_strict | D | mild unsharp 5×5 0.5 | on | +1.33 / +0.37 | random | 19 % | 16 % | 11 % | 6 % | 2 % | 1 % | 0 % | 0 % | 6 | 8 |
+| ugc_strict | D | mild unsharp 5×5 0.5 | on | +1.33 / +0.37 | hard-half | 23 % | 20 % | 14 % | 6 % | 2 % | 0 % | 0 % | 0 % | 6 | 8 |
+| ugc_strict | D | default unsharp 5×5 1.0 | on | +0.83 / +0.48 | random | 38 % | 34 % | 31 % | 29 % | 23 % | 19 % | 15 % | 7 % | 16 | > 16 |
+| ugc_strict | D | default unsharp 5×5 1.0 | on | +0.83 / +0.48 | hard-half | 49 % | 40 % | 36 % | 30 % | 27 % | 21 % | 14 % | 0 % | 16 | 16 |
+| ugc_av1 | A | mild unsharp 5×5 0.5 | off | -0.61 / +0.20 | random | 66 % | 53 % | 46 % | 38 % | 30 % | 22 % | 20 % | 11 % | > 16 | > 16 |
+| ugc_av1 | A | mild unsharp 5×5 0.5 | off | -0.61 / +0.20 | hard-half | 66 % | 49 % | 42 % | 36 % | 29 % | 20 % | 16 % | 4 % | 16 | 16 |
+| ugc_av1 | A | default unsharp 5×5 1.0 | off | -1.27 / +0.31 | random | 53 % | 48 % | 43 % | 32 % | 22 % | 17 % | 12 % | 7 % | 16 | > 16 |
+| ugc_av1 | A | default unsharp 5×5 1.0 | off | -1.27 / +0.31 | hard-half | 48 % | 33 % | 34 % | 24 % | 15 % | 8 % | 4 % | 0 % | 10 | 12 |
+| ugc_av1 | B | mild unsharp 5×5 0.5 | off | -1.63 / +0.19 | random | 31 % | 30 % | 29 % | 28 % | 26 % | 21 % | 16 % | 8 % | 16 | > 16 |
+| ugc_av1 | B | mild unsharp 5×5 0.5 | off | -1.63 / +0.19 | hard-half | 34 % | 40 % | 37 % | 38 % | 32 % | 25 % | 17 % | 0 % | 16 | 16 |
+| ugc_av1 | B | default unsharp 5×5 1.0 | off | -5.16 / +0.02 | random | 19 % | 16 % | 14 % | 8 % | 4 % | 2 % | 1 % | 0 % | 6 | 8 |
+| ugc_av1 | B | default unsharp 5×5 1.0 | off | -5.16 / +0.02 | hard-half | 17 % | 16 % | 13 % | 5 % | 2 % | 1 % | 0 % | 0 % | 6 | 6 |
+| ugc_av1 | D | mild unsharp 5×5 0.5 | on | +0.78 / +0.31 | random | 34 % | 34 % | 32 % | 29 % | 25 % | 19 % | 15 % | 8 % | 16 | > 16 |
+| ugc_av1 | D | mild unsharp 5×5 0.5 | on | +0.78 / +0.31 | hard-half | 31 % | 19 % | 21 % | 15 % | 9 % | 4 % | 1 % | 0 % | 8 | 10 |
+| ugc_av1 | D | default unsharp 5×5 1.0 | on | +0.02 / +0.36 | random | 44 % | 47 % | 48 % | 48 % | 49 % | 50 % | 49 % | 50 % | > 16 | > 16 |
+| ugc_av1 | D | default unsharp 5×5 1.0 | on | +0.02 / +0.36 | hard-half | 47 % | 45 % | 45 % | 45 % | 45 % | 43 % | 40 % | 32 % | > 16 | > 16 |
+
+![E10](docs/img/e10/e10.png)
+
+* **The two platforms disagree on class A,** which is why validation is needed at all. Mild
+  sharpening is on for A on ugc_strict (+0.44 SSIMULACRA2) and off on ugc_av1 (−0.61). D is on
+  for both, and B is off for both.
+* **Clear effects need few clips.** Two or three are enough when sharpening clearly hurts (B on
+  ugc_strict), and 6–8 when it clearly helps (A, D on ugc_strict).
+* **Harm concentrated in a few clips needs many clips,** unless they are picked deliberately. On
+  ugc_av1 class A, a few rate-starved clips carry the harm. Random validation still errs 22 % of
+  the time at n = 10. With hard-half selection, the default recipe reaches ≤ 10 % error at n = 10
+  and the mild one at n = 16.
+* **When the true effect is ≈ 0,** e.g. the default unsharp on ugc_strict A (+0.07) or on
+  ugc_av1 D (+0.02), no n decides reliably. The decision is also inconsequential there.
+* **Implied upload budget.** For E15/E16 the recommendation is to validate the recipe on class A
+  only, with **8–10 clips chosen hard-half**, as tier-only + recipe: 16–20 uploads per platform.
+  Keep tier-only unless the mean gain is clearly positive. A wrong "off" costs at most the small
+  gain (≈ +0.4 SSIMULACRA2); a wrong "on" can cost a clip −25 (§8).
+
+## 13. E12 results: a passthrough rule below a bitrate cap
+
+Plan, pre-registered before the run and amended before it after a smoke test:
+[`docs/E12-plan.md`](docs/E12-plan.md).
+* New profile `sim:ugc_passthrough`: `ugc_strict` plus an invented rule. H.264 uploads at ≤ 720p
+  and ≤ 2000 kbps (actual average) are served unchanged.
+* GP-BO over upscale × unsharp × upload bitrate (300–80,000 kbps, log scale), 30 trials, 2 seeds,
+  on 3 class A + 3 class B train clips; then fixed configurations on the A and B dev clips
+  (`scripts/e12.py`).
+
+#### Q1: discovery by GP-BO (30 trials, composite on 3 A + 3 B train clips)
+
+| seed | best composite | best θ | in passthrough region | first passthrough trial within 1 % of the best | passthrough share of trials |
+|---|---|---|---|---|---|
+| 0 | 39.05 | ×2, unsharp 1.03, 80000 kbps | no | – | 0 % |
+| 1 | 39.06 | ×2, unsharp 1.01, 80000 kbps | no | – | 3 % |
+
+#### Q2: every configuration vs tier-only, dev clips
+
+| class | configuration | composite | ssimulacra2 | dists | xpsnr | median upload kbps | served |
+|---|---|---|---|---|---|---|---|
+| A (7) | ×2 + mild unsharp, CRF 10 | **+1.67 [+1.39, +1.98]** | **+0.37 [+0.00, +0.67]** | +0.0008 [-0.0003, +0.0021] | **+0.29 [+0.20, +0.40]** | 82750 | 0/7 served unchanged |
+| A (7) | ×1 at 1900 kbps (under the cap) | -4.74 [-12.71, +0.48] | -6.44 [-21.71, +4.18] | -0.0069 [-0.0249, +0.0051] | -0.31 [-1.44, +0.56] | 1654 | 6/7 served unchanged |
+| A (7) | ×1 + mild unsharp at 1900 kbps | -4.37 [-11.70, +0.39] | -10.65 [-25.08, +0.13] | -0.0084 [-0.0257, +0.0033] | -0.34 [-1.41, +0.47] | 1694 | 6/7 served unchanged |
+| A (7) | ×1 at 2500 kbps (over the cap) | **-10.57 [-15.94, -6.76]** | **-18.75 [-28.83, -10.87]** | **-0.0253 [-0.0363, -0.0157]** | **-1.72 [-2.46, -1.03]** | 2259 | 0/7 served unchanged |
+| A (7) | ×2 at 16 Mbps | **-1.28 [-1.69, -0.87]** | **-1.50 [-2.13, -0.86]** | **-0.0049 [-0.0070, -0.0029]** | **-0.19 [-0.23, -0.15]** | 17400 | 0/7 served unchanged |
+| A (7) | GP-BO best, seed 0 (×2, unsharp 1.03, 80000 kbps) | **+1.79 [+1.37, +2.18]** | -0.27 [-1.11, +0.52] | -0.0000 [-0.0015, +0.0015] | **+0.39 [+0.29, +0.50]** | 94551 | 0/7 served unchanged |
+| A (7) | GP-BO best, seed 1 (×2, unsharp 1.01, 80000 kbps) | **+1.86 [+1.45, +2.21]** | -0.13 [-0.83, +0.54] | +0.0005 [-0.0010, +0.0019] | **+0.40 [+0.30, +0.50]** | 94255 | 0/7 served unchanged |
+| B (6) | ×2 + mild unsharp, CRF 10 | **+0.99 [+0.54, +1.40]** | **-1.12 [-1.97, -0.23]** | +0.0008 [-0.0010, +0.0024] | **+0.23 [+0.16, +0.29]** | 155582 | 0/6 served unchanged |
+| B (6) | ×1 at 1900 kbps (under the cap) | **-16.02 [-21.69, -9.92]** | **-26.33 [-36.51, -15.93]** | **-0.0475 [-0.0702, -0.0240]** | **-2.21 [-3.16, -1.19]** | 2020 | 2/6 served unchanged |
+| B (6) | ×1 + mild unsharp at 1900 kbps | **-12.14 [-17.17, -6.84]** | **-28.11 [-37.01, -19.01]** | **-0.0398 [-0.0577, -0.0209]** | **-1.73 [-2.61, -0.81]** | 2011 | 3/6 served unchanged |
+| B (6) | ×1 at 2500 kbps (over the cap) | **-17.17 [-20.27, -13.74]** | **-29.09 [-33.58, -24.76]** | **-0.0525 [-0.0643, -0.0414]** | **-2.29 [-2.90, -1.64]** | 2677 | 0/6 served unchanged |
+| B (6) | ×2 at 16 Mbps | **-1.41 [-1.73, -1.09]** | **-1.20 [-1.95, -0.45]** | **-0.0069 [-0.0089, -0.0049]** | **-0.24 [-0.28, -0.21]** | 17319 | 0/6 served unchanged |
+| B (6) | GP-BO best, seed 0 (×2, unsharp 1.03, 80000 kbps) | **+0.90 [+0.33, +1.43]** | **-3.66 [-4.40, -2.46]** | -0.0007 [-0.0030, +0.0015] | **+0.35 [+0.25, +0.45]** | 94847 | 0/6 served unchanged |
+| B (6) | GP-BO best, seed 1 (×2, unsharp 1.01, 80000 kbps) | **+0.84 [+0.18, +1.42]** | **-3.77 [-4.67, -2.52]** | -0.0007 [-0.0028, +0.0015] | **+0.35 [+0.25, +0.45]** | 94291 | 0/6 served unchanged |
+
+#### Q3: the cliff, ×1 at 1900 kbps (served) − ×1 at 2500 kbps (re-encoded)
+
+| class | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|
+| A (7) | **+5.83 [+2.95, +7.94]** | **+12.31 [+6.63, +16.46]** | **+0.0185 [+0.0095, +0.0248]** | **+1.41 [+0.71, +2.10]** |
+| B (6) | +1.15 [-1.87, +4.29] | +2.76 [-3.53, +9.19] | +0.0051 [-0.0073, +0.0175] | +0.08 [-0.32, +0.53] |
+
+
+![E12 search](docs/img/e12/e12_search.png)
+
+* **The cliff is real.** At ×1, an upload under the cap that is served unchanged beats one just
+  over it that is re-encoded, by +12.3 SSIMULACRA2 on A (CI above 0). On B the gap is smaller and
+  not significant, because only 2–3 of 6 high-motion uploads stayed under the cap.
+* **But in this simulator the passthrough route is not worth taking.** On A, ×1 at 1.9 Mbps
+  served unchanged is still below the normal 1440p route (SSIMULACRA2 −6.4, CI spanning 0), and
+  on B it is far below (−26). The 1440p HEVC tier at the same 2000 kbps budget, after mild
+  denoise, beats a 720p x264-veryfast upload at 1.9 Mbps.
+* **GP-BO's answer is therefore right.** Both seeds converge on ×2, unsharp ≈ 1.0 and the highest
+  upload bitrate, i.e. tier-only with the default unsharp, as in P1 and E11. But it sampled the
+  passthrough region in only 0–1 of 30 trials, so E12 cannot show that it would find the rule if
+  passthrough paid off.
+* **The upload bitrate result of E11 is reproduced:** 16 Mbps instead of near-lossless costs
+  SSIMULACRA2 −1.5 on A and −1.2 on B.
+* **Caveats.**
+  * The rule and its cap are invented.
+  * The uploader's encoder is x264 veryfast. A slow or two-pass encode would narrow the gap to the
+    1440p route, but the −6 to −26 gap is large.
+  * For E15 the practical point is that one probe pair, the same clip at 1.9 and 2.5 Mbps at
+    720p, tells whether a platform has such a rule.

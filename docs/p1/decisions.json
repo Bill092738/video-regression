@@ -1,0 +1,16 @@
+{
+  "written": "2026-10-14, after E22 and before E23; from dev results only",
+  "g_loss": "lpips",
+  "g_for_A": "g",
+  "g_for_A_reason": "On class A dev the global G is better than specialist A on every judge (SSIMULACRA2 -4.28 vs -7.77, DISTS -0.0072 vs -0.0452, XPSNR +0.10 vs -0.37 over the class-tuned theta).",
+  "nominated": null,
+  "nominated_reason": "No G beats the class-tuned sharpening-only theta on any judge with a CI above 0 in any class on dev.",
+  "gate_rule": "Per class, among G, class-tuned sharpening-only theta and tier-only: keep the configurations whose dev mean SSIMULACRA2 and XPSNR gains over tier-only are >= 0 (the gate acceptance criterion, applied on dev); pick the one with the most judges whose mean gain over tier-only is positive; tier-only on a tie or if nothing else qualifies. Class C is pre-registered as tier-only.",
+  "gate": {"A": "theta", "B": "tier", "C": "tier", "D": "tier"},
+  "gate_reason": {
+    "A": "class theta: SSIMULACRA2 +0.04, DISTS +0.0012, XPSNR +0.41 over tier-only (3 judges positive); G fails (SSIMULACRA2 -4.25).",
+    "B": "class theta fails (SSIMULACRA2 -2.85); every G fails (SSIMULACRA2 -4.7 to -7.5).",
+    "C": "pre-registered before E20 (report-only class).",
+    "D": "class theta fails (SSIMULACRA2 -0.46); every G fails (SSIMULACRA2 -5.5 to -11.2)."
+  }
+}

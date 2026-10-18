@@ -73,8 +73,17 @@ def build_filter(params: dict, src_height: int) -> str:
     return ",".join(chain)
 
 
-def apply(src: Path, params: dict, out: Path) -> Path:
+def upload_codec(upload_kbps: float | None = None) -> list[str]:
+    """Near-lossless CRF 10 by default; a fixed bitrate (e.g. a platform's recommended rate) if given."""
+    if not upload_kbps:
+        return UPLOAD_CODEC
+    k = int(round(upload_kbps))
+    return ["-c:v", "libx264", "-preset", "veryfast", "-b:v", f"{k}k", "-maxrate", f"{k}k", "-bufsize", f"{2 * k}k",
+            "-pix_fmt", "yuv420p"]
+
+
+def apply(src: Path, params: dict, out: Path, upload_kbps: float | None = None) -> Path:
     """Render the pre-compensated upload file."""
     info = ff.probe(src)
-    ff.run(["-i", str(src), "-an", "-vf", build_filter(params, info.height), *UPLOAD_CODEC, str(out)])
+    ff.run(["-i", str(src), "-an", "-vf", build_filter(params, info.height), *upload_codec(upload_kbps), str(out)])
     return out

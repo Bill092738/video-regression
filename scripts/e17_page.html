@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video Comparison Study</title>
+<style>
+  :root { --bg: #f4f4f2; --fg: #1d1d1b; --muted: #6b6b66; --accent: #2f5fb3; --panel: #ffffff; --line: #d9d9d4; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #161616; --fg: #ececea; --muted: #9a9a94; --accent: #7aa2f7; --panel: #202020; --line: #333331; } }
+  :root[data-theme="dark"] { --bg: #161616; --fg: #ececea; --muted: #9a9a94; --accent: #7aa2f7; --panel: #202020; --line: #333331; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 1320px; margin: 0 auto; padding: 16px; }
+  .stage { position: relative; width: 1280px; height: 720px; max-width: 100%; background: #000; margin: 12px 0; }
+  .stage video { position: absolute; inset: 0; width: 1280px; height: 720px; visibility: hidden; }
+  .stage video.on { visibility: visible; }
+  .tag { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.6); color: #fff; padding: 2px 10px;
+         font-weight: 600; border-radius: 4px; z-index: 2; }
+  button { font: inherit; padding: 8px 18px; margin: 4px 6px 4px 0; border: 1px solid var(--line); border-radius: 6px;
+           background: var(--panel); color: var(--fg); cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.sel { outline: 3px solid var(--accent); }
+  .muted { color: var(--muted); }
+  .hidden { display: none; }
+  input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); }
+  @media (max-width: 1320px) { .stage, .stage video { width: 100%; height: auto; aspect-ratio: 16 / 9; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Video comparison study</h1>
+  <section id="intro">
+    <p>Each trial shows the same short clip processed in two ways, <b>A</b> and <b>B</b>, in the same place.
+       Switch between them with the keys <b>1</b> and <b>2</b> (or the buttons) as often as you like while they loop.
+       Then choose the one that looks <b>better</b> to you. There is no "same" option: if unsure, pick the one you lean towards.</p>
+    <p class="muted">About 10 minutes. Please keep the window at full size; the videos are shown at 100 %.
+       Your answers are saved in this browser and downloaded as a file at the end.</p>
+    <p>Viewer code: <input id="viewer" placeholder="e.g. V01" size="10">
+       <button class="primary" id="start">Start</button></p>
+  </section>
+  <section id="trial" class="hidden">
+    <p><b id="progress"></b> <span class="muted">— press 1 / 2 to switch, then choose.</span></p>
+    <div class="stage" id="stage">
+      <span class="tag" id="tag">A</span>
+      <video id="va" muted loop playsinline preload="auto"></video>
+      <video id="vb" muted loop playsinline preload="auto"></video>
+    </div>
+    <button id="showA">Show A (1)</button><button id="showB">Show B (2)</button>
+    <span class="muted"> | </span>
+    <button class="primary" id="pickA">A looks better</button><button class="primary" id="pickB">B looks better</button>
+  </section>
+  <section id="done" class="hidden">
+    <h2>Thank you</h2>
+    <p>Your answers have been downloaded as a file. Please give it to the study organiser.</p>
+    <button id="again">Download again</button>
+  </section>
+</main>
+<script>
+const TRIALS = /*TRIALS*/[];
+const $ = (id) => document.getElementById(id);
+let viewer = "", order = [], i = 0, results = [], aIsTreatment = true, shown = "A", switches = 0, t0 = 0;
+
+function store(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+function load(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
+function rng(seedStr) { let h = 2166136261; for (const c of seedStr) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 1e9) / 1e9; }; }
+
+function show(which) {
+  shown = which; switches++;
+  const a = $("va"), b = $("vb");
+  (which === "A" ? b : a).currentTime = (which === "A" ? a : b).currentTime;
+  a.classList.toggle("on", which === "A"); b.classList.toggle("on", which === "B");
+  $("tag").textContent = which;
+}
+function loadTrial() {
+  const t = TRIALS[order[i]];
+  const r = rng(viewer + ":" + t.id);
+  aIsTreatment = r() < 0.5;
+  $("va").src = "stimuli/" + (aIsTreatment ? t.treatment : t.reference);
+  $("vb").src = "stimuli/" + (aIsTreatment ? t.reference : t.treatment);
+  $("va").play().catch(() => {}); $("vb").play().catch(() => {});
+  switches = -1; show("A"); t0 = performance.now();
+  $("progress").textContent = `Trial ${i + 1} of ${order.length}`;
+}
+function pick(which) {
+  const t = TRIALS[order[i]];
+  results.push({ viewer, trial: t.id, clip: t.clip, comparison: t.comparison, repeat_of: t.repeat_of ?? null,
+                 a_is_treatment: aIsTreatment, choice: which,
+                 chose_treatment: (which === "A") === aIsTreatment, switches, seconds: (performance.now() - t0) / 1000 });
+  store("e17_" + viewer, { order, i: i + 1, results });
+  i++;
+  if (i < order.length) loadTrial(); else finish();
+}
+function download() {
+  const blob = new Blob([JSON.stringify({ viewer, results }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `e17_${viewer}.json`; a.click();
+}
+function finish() { $("trial").classList.add("hidden"); $("done").classList.remove("hidden"); $("va").pause(); $("vb").pause(); download(); }
+
+$("start").onclick = () => {
+  viewer = $("viewer").value.trim(); if (!viewer) { $("viewer").focus(); return; }
+  const saved = load("e17_" + viewer);
+  if (saved && saved.i < saved.order.length) { order = saved.order; i = saved.i; results = saved.results; }
+  else { const r = rng(viewer); order = TRIALS.map((_, k) => k);
+         for (let k = order.length - 1; k > 0; k--) { const j = Math.floor(r() * (k + 1)); [order[k], order[j]] = [order[j], order[k]]; } }
+  $("intro").classList.add("hidden"); $("trial").classList.remove("hidden"); loadTrial();
+};
+$("showA").onclick = () => show("A"); $("showB").onclick = () => show("B");
+$("pickA").onclick = () => pick("A"); $("pickB").onclick = () => pick("B");
+$("again").onclick = download;
+document.addEventListener("keydown", (e) => {
+  if ($("trial").classList.contains("hidden")) return;
+  if (e.key === "1") show("A"); if (e.key === "2") show("B");
+});
+</script>
+</body>
+</html>

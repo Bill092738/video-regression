@@ -105,3 +105,25 @@ def test_seed_groups_and_table():
     assert rows["gp"]["final_mean"] == pytest.approx(10.0) and rows["gp"]["final_sd"] == 0.0
     assert rows["gp"]["t95_mean"] == pytest.approx(2.0)  # 3 and 1
     assert report.convergence_plot(runs, groups)[:4] == b"\x89PNG"
+
+
+@pytest.mark.slow
+def test_rescore_on_another_platform(tiny_clip, tmp_path, monkeypatch):
+    """E14: a run's configurations are re-evaluated on a second platform, with their own cache."""
+    from dataclasses import replace
+
+    from vreg import platform as platform_mod
+    from vreg.rescore import rescore
+
+    other = replace(TINY, name="tiny_other", playback_height=72)
+    monkeypatch.setitem(platform_mod.PROFILES, "tiny", TINY)
+    monkeypatch.setitem(platform_mod.PROFILES, "tiny_other", other)
+    monkeypatch.setattr("vreg.optimize.cache_root", lambda p: tmp_path / "cache" / p.name.replace(":", "_"))
+    monkeypatch.setattr("vreg.rescore.cache_root", lambda p: tmp_path / "cache" / p.name.replace(":", "_"))
+    run_study(tmp_path / "run", {"tiny": tiny_clip}, platform_mod.make_platform("sim:tiny"), sampler="random",
+              n_trials=2, objective="ssim", use_lpips=False, log=lambda *_: None)
+    res = rescore(tmp_path / "run", {"tiny": tiny_clip}, tag="x", platform_override="sim:tiny_other",
+                  log=lambda *_: None)
+    assert res["platform"] == "sim:tiny_other" and res["trained_on"] == "sim:tiny"
+    assert (tmp_path / "run" / "rescore_x.json").exists()
+    assert (tmp_path / "cache" / "sim_tiny_other").exists()

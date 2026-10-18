@@ -1,0 +1,11 @@
+video-regression
+Copyright 2026 Bill092738
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Third-party material is NOT covered by that license:
+* Test video sequences and frames taken from them (including crops in docs/img/) keep their own
+  licenses and terms; see docs/CREDITS.md and docs/p1/clips.csv. The sequences themselves are not
+  distributed with this repository.
+* Python dependencies are used under their own licenses (see pyproject.toml); FFmpeg is called as
+  an external program and is not distributed here.

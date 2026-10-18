@@ -41,19 +41,68 @@ def cmd_doctor(_args) -> int:
 
 
 def _clips(spec: str) -> dict[str, Path]:
-    from . import content
+    """Clip names, ``all`` (the P0 clips) or selectors such as ``@A:train`` (see ``vreg.classify``)."""
+    from . import classify, content
 
-    names = content.all_clip_names() if spec == "all" else [c for c in spec.split(",") if c]
+    names = content.all_clip_names() if spec == "all" else classify.resolve(spec)
     return content.ensure_clips(names, content.CLIPS_DIR)
 
 
 def cmd_clips(args) -> int:
+    import os
+
     from . import content, ff
 
-    for name, path in _clips(args.names).items():
-        i = ff.probe(path)
-        desc = (content.SYNTHETIC_CLIPS.get(name) or content.XIPH_CLIPS.get(name))[1]
-        print(f"{name:16s} {i.width}x{i.height}@{i.fps:g} {i.frames:3d}f  {path}  -- {desc}")
+    if args.manifest:
+        os.environ["VREG_MANIFEST"] = args.manifest
+        spec = args.names if args.names != "all" else ",".join(content.read_manifest(Path(args.manifest)))
+    else:
+        spec = args.names
+    failed = []
+    for name in (spec.split(",") if args.manifest else [spec]):
+        try:
+            clips = _clips(name)
+        except (ff.FFmpegError, OSError, ValueError) as e:
+            print(f"!!! {name}: {e}".splitlines()[0])
+            failed.append(name)
+            continue
+        for n, path in clips.items():
+            i = ff.probe(path)
+            print(f"{n:22s} {i.width}x{i.height}@{i.fps:g} {i.frames:3d}f  {path}  -- {content.describe(n)}", flush=True)
+    if failed:
+        print(f"failed: {','.join(failed)}")
+    return 1 if failed else 0
+
+
+def cmd_features(args) -> int:
+    import os
+
+    from . import content, features
+
+    os.environ["VREG_MANIFEST"] = args.manifest
+    names = list(content.read_manifest(Path(args.manifest)))
+    rows = []
+    for name, path in content.ensure_clips(names, content.CLIPS_DIR).items():
+        rows.append(features.clip_features(name, path))
+        r = rows[-1]
+        print(f"{name:22s} SI={r['si']:6.1f} TI={r['ti']:6.1f} flat={r['flat_frac']:.2f} "
+              f"dark={r['dark_frac']:.2f} luma={r['mean_luma']:.0f}", flush=True)
+    print(features.write_csv(rows, Path(args.out)))
+    return 0
+
+
+def cmd_classify(args) -> int:
+    from . import classify, content, features
+
+    pre = json.loads(args.pre_registered) if args.pre_registered else None
+    res = classify.classify(content.read_manifest(Path(args.manifest)), features.read_csv(Path(args.features)),
+                            seed=args.seed, report_only=tuple(c for c in args.report_only.split(",") if c),
+                            pre_registered=pre)
+    print(classify.write(res, Path(args.out)))
+    r = res["rules"]
+    print(f"B if SI >= {r['si_min_for_B']:.1f} or TI >= {r['ti_min_for_B']:.1f}")
+    for k, c in res["counts"].items():
+        print(f"class {k}: {sum(c.values()):3d} clips  " + "  ".join(f"{s} {n}" for s, n in c.items()))
     return 0
 
 
@@ -97,8 +146,8 @@ def cmd_rescore(args) -> int:
 
     clips = _clips(args.clips)
     for run in args.runs:
-        rescore(Path(run), clips)
-        print((Path(run) / "rescore.md").read_text())
+        rescore(Path(run), clips, tag=args.tag, platform_override=args.platform)
+        print((Path(run) / (f"rescore_{args.tag}.md" if args.tag else "rescore.md")).read_text())
     return 0
 
 
@@ -115,15 +164,56 @@ def cmd_report(args) -> int:
 
 
 def cmd_surrogate(args) -> int:
-    from .surrogate.loop import run_loop
+    from .surrogate.loop import run_anchored, run_loop
     from .platform import make_platform
 
     plat = make_platform(args.platform)
     clips = _clips(args.clips)
+    if args.estimator == "anchored":
+        front = None
+        if args.front_from:
+            from .optimize import best_params
+
+            front = best_params(Path(args.front_from))
+        run_anchored(RUNS / (args.name or "surrogate_anchored"), clips, plat,
+                     Path(args.emulator_from) if args.emulator_from else None,
+                     anchors=args.anchors, upscale=args.upscale, generator_steps=args.generator_steps,
+                     trust_weight=args.trust_weight, max_residual=args.max_residual,
+                     holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed, g_loss=args.g_loss,
+                     front=front, emulator_steps=args.emulator_steps, n_variants=args.variants,
+                     pairs_cache=Path(args.pairs_cache) if args.pairs_cache else None)
+        return 0
     run_loop(RUNS / (args.name or "surrogate"), clips, plat, rounds=args.rounds, upscale=args.upscale,
              n_variants=args.variants, emulator_steps=args.emulator_steps, generator_steps=args.generator_steps,
              finetune_fraction=args.finetune_fraction, trust_weight=args.trust_weight, max_residual=args.max_residual,
-             holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed)
+             holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed, g_loss=args.g_loss,
+             pairs_cache=Path(args.pairs_cache) if args.pairs_cache else None)
+    return 0
+
+
+def cmd_surrogate_eval(args) -> int:
+    from .surrogate.loop import evaluate_trained
+
+    evaluate_trained(Path(args.run), _clips(args.clips), rnd=args.round, tag=args.tag)
+    return 0
+
+
+def cmd_online(args) -> int:
+    from . import online
+
+    run_dir = Path(args.dir)
+    if args.action == "prepare":
+        online.prepare(Path(args.protocol), run_dir)
+    elif args.action == "upload":
+        if not args.upload_cmd:
+            raise SystemExit("--upload-cmd is required (your own upload command; it gets {file})")
+        online.upload(run_dir, args.upload_cmd)
+    elif args.action == "download":
+        if not args.download_cmd:
+            raise SystemExit("--download-cmd is required (it gets {id} and {out})")
+        online.download(run_dir, args.download_cmd)
+    else:
+        online.score(run_dir)
     return 0
 
 
@@ -135,7 +225,22 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("clips", help="generate / fetch test clips")
     p.add_argument("names", nargs="?", default="all", help="comma separated names or 'all'")
+    p.add_argument("--manifest", help="fetch the clips of a manifest (docs/p1/clips.csv); 'all' = every row")
     p.set_defaults(fn=cmd_clips)
+
+    p = sub.add_parser("features", help="SI/TI, flat and dark fractions of every manifest clip")
+    p.add_argument("--manifest", default="docs/p1/clips.csv")
+    p.add_argument("--out", default="docs/p1/features.csv")
+    p.set_defaults(fn=cmd_features)
+
+    p = sub.add_parser("classify", help="content classes and train/dev/confirm splits")
+    p.add_argument("--manifest", default="docs/p1/clips.csv")
+    p.add_argument("--features", default="docs/p1/features.csv")
+    p.add_argument("--out", default="docs/p1/classes.json")
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--report-only", default="", help="classes whose clips get no split (listed, never tested)")
+    p.add_argument("--pre-registered", help="JSON of decisions fixed before any training, e.g. '{\"gate\": {\"C\": \"tier\"}}'")
+    p.set_defaults(fn=cmd_classify)
 
     p = sub.add_parser("eval", help="evaluate one parameter set")
     p.add_argument("--clips", default="old_town_cross")
@@ -159,6 +264,8 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("rescore", help="score naive / tier-only / best (or each G round) with all metrics")
     p.add_argument("runs", nargs="+")
     p.add_argument("--clips", default="all")
+    p.add_argument("--tag", default="", help="write rescore_<tag>.json / .md instead of rescore.json / .md")
+    p.add_argument("--platform", help="evaluate the run's configurations on this platform instead (transfer, E14)")
     p.set_defaults(fn=cmd_rescore)
 
     p = sub.add_parser("report", help="HTML report for one or more runs")
@@ -187,8 +294,32 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--emulator-steps", type=int, default=3000)
     p.add_argument("--generator-steps", type=int, default=1500)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--g-loss", default="lpips", choices=["lpips", "dists", "lpips+dists"],
+                   help="perceptual part of G's training loss (G is never judged by it)")
+    p.add_argument("--pairs-cache", help="directory of round-0 pairs shared between runs (default: inside the run)")
+    p.add_argument("--estimator", default="emulator", choices=["emulator", "anchored"],
+                   help="anchored: real-anchored forward value through a frozen emulator (E7, docs/E7-plan.md)")
+    p.add_argument("--anchors", type=int, default=6, help="anchored: black-box anchor phases (one call per clip each)")
+    p.add_argument("--emulator-from", help="anchored: checkpoint whose E is reused, e.g. runs/p1_g_lpips_s0/round0.pt (default: train E here)")
+    p.add_argument("--front-from", help="anchored: put this optimize run's best theta in front of the black box "
+                   "(E9: G on top of theta)")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_surrogate)
+
+    p = sub.add_parser("surrogate-eval", help="evaluate a trained surrogate run's G on further clips, no retraining")
+    p.add_argument("run")
+    p.add_argument("--clips", required=True)
+    p.add_argument("--round", type=int, default=0)
+    p.add_argument("--tag", default="eval")
+    p.set_defaults(fn=cmd_surrogate_eval)
+
+    p = sub.add_parser("online", help="minimal online-platform validation in phases (docs/E15-protocol.md)")
+    p.add_argument("action", choices=["prepare", "upload", "download", "score"])
+    p.add_argument("--dir", required=True, help="run directory, e.g. runs/online/youtube (holds ledger.jsonl)")
+    p.add_argument("--protocol", default="docs/e15_protocol.json")
+    p.add_argument("--upload-cmd", help="shell command with {file}; must print the video id/URL on its last line")
+    p.add_argument("--download-cmd", help="shell command with {id} and {out}, e.g. yt-dlp ... -o {out} {id}")
+    p.set_defaults(fn=cmd_online)
 
     args = ap.parse_args(argv)
     return args.fn(args)
