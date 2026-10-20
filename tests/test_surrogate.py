@@ -79,3 +79,52 @@ def test_perceptual_losses_are_differentiable(g_loss):
     loss = perceptual_loss(g_loss)(y, x)
     loss.backward()
     assert loss.item() > 0 and y.grad.abs().sum() > 0
+
+
+def test_anchored_forward_equals_real_output_at_the_anchor():
+    """E7: at the anchor, E(G(X)) + delta is the black box's output; the gradient is E's."""
+    import random
+
+    from vreg.surrogate.loop import train_generator_anchored
+
+    torch.manual_seed(0)
+    src = [np.random.randint(0, 255, (2, 256, 256, 3), dtype=np.uint8)]
+    E, G = emulator(width=8), generator(width=8, max_residual=0.06)
+    seen = []
+
+    def anchor_fn(g):
+        out = apply_full_frames(g, src[0], "cpu")
+        y_sim = apply_full_frames(E, out, "cpu")
+        y_real = np.clip(out.astype(int) + 7, 0, 255)  # a "black box" E does not know: +7 levels
+        seen.append(1)
+        return [(y_real - y_sim).astype(np.int16)]
+
+    def perceptual(y_hat, x):
+        return (y_hat - x).abs().mean()
+
+    losses, log = train_generator_anchored(G, E, src, 6, 3, anchor_fn, "cpu", random.Random(0), perceptual,
+                                           lr=1e-3, l1_weight=0.0, log=lambda *_: None)
+    assert len(seen) == 3 and len(losses) == 6
+    assert log[0]["step"] == 0 and log[1]["step"] == 2
+    assert 6.0 < log[0]["mean_abs_offset"] < 8.0  # the offset measures the emulator's error
+
+
+def test_theta_front_end_channel(tiny_clip, tmp_path):
+    """E9: a theta in front of the black box; its pairs are cached apart from the upscale-only ones."""
+    from test_pipeline import TINY
+
+    from vreg import ff, precomp
+    from vreg.platform import SimulatedPlatform
+    from vreg.surrogate.loop import channel, pairs_dir, send_through_platform
+
+    theta = {"upscale": 2.0, "sharpen": 1.0, "sharpen_radius": 2.0}
+    assert channel(2.0) == precomp.normalize({"upscale": 2.0})
+    assert channel(theta)["sharpen"] == 1.0
+    plat = SimulatedPlatform(TINY)
+    assert pairs_dir(tmp_path, plat, 2.0) != pairs_dir(tmp_path, plat, channel(theta))
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    a = send_through_platform(tiny_clip, 2.0, plat, tmp_path / "a")
+    b = send_through_platform(tiny_clip, channel(theta), plat, tmp_path / "b")
+    fa, fb = ff.read_frames(a), ff.read_frames(b)
+    assert fa.shape == fb.shape and not np.array_equal(fa, fb)

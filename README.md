@@ -37,12 +37,19 @@ Two optimisation routes are implemented, matching section 3 of the idea:
   adaptive** platform pipeline: ladder choice, ingest filtering, rate control and the served
   rendition. It runs in a closed loop with a small real-upload budget, and reports how much
   playback quality is recovered **beyond** the tier trick.
-* **Current direction (after P1):** P0 confirmed only the tier gain. P1 then tested a
-  **content-scoped** claim, with pre-registered classes, splits and decision rules
-  ([`docs/P1-plan.md`](docs/P1-plan.md)): for natural low-motion content, does a learned `G` beat
-  class-tuned sharpening? **It does not.** On this black box, the gain beyond the tier trick that
-  survives the independent judges comes from simple sharpening on natural low-motion content,
-  switched off elsewhere by a content gate ([P1 results](PROGRESS.md#7-p1-results)).
+* **Current state (after E12):**
+  * **P0** confirmed only the tier gain.
+  * **P1** tested a **content-scoped** claim, with pre-registered classes, splits and decision
+    rules ([`docs/P1-plan.md`](docs/P1-plan.md)): on natural low-motion content, does a learned `G`
+    beat class-tuned sharpening? **It does not.** The follow-ups explain why: an exploited
+    emulator (E7) and metric specialisation (E9).
+  * **E11:** what an uploader can use needs no tuning. Upload near-lossless at the higher tier,
+    and add a mild unsharp only on natural low-motion content. The upload bitrate matters more
+    than any filter.
+  * **E14:** the recipe depends on the platform's rate headroom, so each real platform needs a
+    short validation. **E10:** about 20 uploads decide it ([protocol](docs/E15-protocol.md)).
+  * **Next:** that real-platform validation, and a small viewer study
+    ([`docs/E17-plan.md`](docs/E17-plan.md)).
 
   The survey, the overlap check and the license notes for reusable code are in
   [`docs/related-work.md`](docs/related-work.md). The updated direction is in
@@ -288,7 +295,12 @@ Bold: the 95 % bootstrap CI over clips excludes 0; n.s.: it does not.
 3. The full θ hurts graphics and text, so pre-compensation must be content-adaptive. P1 refines
    this: on graphics and animation the grain and colour boost do the damage, and mild sharpening
    alone does not. The content gate that P1 accepts sharpens only natural low-motion content and
-   uses tier-only elsewhere.
+   uses tier-only elsewhere. Tuning adds nothing over a fixed recipe (E11): ffmpeg's default
+   unsharp matches the tuned θ, and a mild unsharp (5×5, 0.5) on natural low-motion content is
+   the only setting that beats tier-only on all three judges. The upload bitrate matters more
+   than any filter: uploading at the recommended 16 Mbps instead of near-lossless costs more
+   SSIMULACRA2 than sharpening gains
+   ([E11](PROGRESS.md#11-e11-results-common-creator-recipes-as-a-baseline)).
 4. The optimum depends on the platform: grain on `ugc_strict`, none on `ugc_av1`. The `ugc_av1`
    filter gain passes the independent-metric check on average, but it rests on one clip. The
    P1 gate does not transfer either: on `ugc_av1`, sharpening class A costs SSIMULACRA2 on
@@ -298,7 +310,11 @@ Bold: the 95 % bootstrap CI over clips excludes 0; n.s.: it does not.
    tier-only on the objective, but not on SSIMULACRA2. In P1's pre-registered test on 77 clips
    it does **not** beat class-tuned sharpening on any content class: it lowers SSIMULACRA2 and
    DISTS and damages graphics and animation. Its gains are in LPIPS, its own training loss.
-   Domain-adaptation rounds did not help either.
+   Domain-adaptation rounds did not help either. Anchoring its forward value on the black box
+   (E7) closes about 80 % of the gap, which shows the emulator was being exploited. Starting `G`
+   from the sharpening θ (E9) still does not beat θ: `G` keeps trading the independent judges for
+   LPIPS, at 300–500 black-box calls ([E7](PROGRESS.md#9-e7-results-a-real-anchored-estimator-for-g),
+   [E9](PROGRESS.md#10-e9-results-a-learned-g-on-top-of-the-class-tuned-θ)).
 
 ### Next steps
 
@@ -318,36 +334,50 @@ compared and what counts as success. In short:
   classes and splits, and one confirmation run. The learned `G` did not beat class-tuned
   sharpening (H1 not confirmed); the content gate was accepted. Class C (natural, flat or dark)
   had a single clip and stays untested.
-* **P1-later, method improvements.** These are now the only route by which a learned `G` could
-  beat the P1 gate:
-  * a real-forward / surrogate-backward estimator for `G`;
+* **P1-later, method improvements.** E7 (real-anchored estimator) and E9 (`G` on top of θ) are
+  done, and the learned-`G` line is closed with a negative result. Remaining:
   * an emulator ensemble or a conservative emulator;
-  * a BO + `G` hybrid;
-  * TuRBO and warm-started BO for a small real budget;
-  * a common creator recipe as a baseline.
 * **P1, simulator realism:**
-  * passthrough below a bitrate cap;
   * AV1 film-grain synthesis;
-  * several renditions;
-  * cross-platform transfer.
+  * several renditions.
+* **Validation budget for a real platform (E10, done):** validate the recipe on class A only,
+  with 8–10 clips that include high-detail ones, as tier-only + recipe (16–20 uploads per
+  platform). Keep tier-only unless the gain is clearly positive. A passthrough rule (E12) can be
+  probed with one 720p clip at 1.9 and 2.5 Mbps
+  ([E10](PROGRESS.md#12-e10-results-reframed-how-many-clips-does-a-per-platform-validation-need),
+  [E12](PROGRESS.md#13-e12-results-a-passthrough-rule-below-a-bitrate-cap)).
 * **P2, real platform and human study:**
   * a platform ladder probe;
   * a real closed loop on own content, with private uploads;
   * a small paired-comparison viewer study;
   * longer and more varied content.
 
+## Licensing
+
+* **Code** (everything under `src/`, `scripts/`, `tests/`): [Apache License 2.0](LICENSE), see
+  also [`NOTICE`](NOTICE).
+* **Text and figures written for this project** (README, `PROGRESS.md`, `docs/`, the charts in
+  `docs/img/`): [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+* **Third-party video material is not covered by either license.** Test sequences, and frames or
+  crops taken from them (e.g. the crop panels in `docs/img/`), keep their owners' terms. Several
+  are for research use only. See [`docs/CREDITS.md`](docs/CREDITS.md) and `docs/p1/clips.csv`.
+  The sequences are not distributed here; `vreg clips` fetches them from their hosts.
+
 ## Repository layout
 
 ```
 src/vreg/       ff.py content.py features.py classify.py platform.py precomp.py metrics.py evaluate.py
-                optimize.py rescore.py report.py cli.py
+                optimize.py rescore.py report.py online.py cli.py
 src/vreg/surrogate/  models.py loop.py
 scripts/        setup_env.sh run_experiments.sh run_p0.sh p0_tables.py run_p1.sh p1_tables.py
-                make_screen_clips.py
+                make_screen_clips.py run_e7.sh e7_tables.py run_e9.sh e9_tables.py e10.py e11.py e12.py
+                e17_prepare.py e17_page.html e17_analyze.py reproduce_tables.sh check_progress_tables.py
 tests/          tiny-clip unit tests (run in GitHub Actions)
 docs/img/       figures used in this README
 docs/related-work.md  prior work, overlap check, reusable code and licenses
-docs/P0-plan.md, docs/P1-plan.md  execution plans (both done)
+docs/P0-plan.md, docs/P1-plan.md, docs/E7..E17-plan.md  pre-registered plans (E17 not run yet)
+docs/E15-protocol.md, docs/e15_protocol.json  the minimal real-platform validation (23 uploads)
+docs/CREDITS.md third-party test material and its terms
 docs/p1/        P1 clip manifest (licenses), features, frozen classes and splits, pre-E23 decisions
 idea.md         project idea and direction (updated after the prior-work review)
 PROGRESS.md     what is done, what the results show, experiment backlog

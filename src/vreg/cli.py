@@ -164,11 +164,25 @@ def cmd_report(args) -> int:
 
 
 def cmd_surrogate(args) -> int:
-    from .surrogate.loop import run_loop
+    from .surrogate.loop import run_anchored, run_loop
     from .platform import make_platform
 
     plat = make_platform(args.platform)
     clips = _clips(args.clips)
+    if args.estimator == "anchored":
+        front = None
+        if args.front_from:
+            from .optimize import best_params
+
+            front = best_params(Path(args.front_from))
+        run_anchored(RUNS / (args.name or "surrogate_anchored"), clips, plat,
+                     Path(args.emulator_from) if args.emulator_from else None,
+                     anchors=args.anchors, upscale=args.upscale, generator_steps=args.generator_steps,
+                     trust_weight=args.trust_weight, max_residual=args.max_residual,
+                     holdout=_clips(args.holdout) if args.holdout else None, seed=args.seed, g_loss=args.g_loss,
+                     front=front, emulator_steps=args.emulator_steps, n_variants=args.variants,
+                     pairs_cache=Path(args.pairs_cache) if args.pairs_cache else None)
+        return 0
     run_loop(RUNS / (args.name or "surrogate"), clips, plat, rounds=args.rounds, upscale=args.upscale,
              n_variants=args.variants, emulator_steps=args.emulator_steps, generator_steps=args.generator_steps,
              finetune_fraction=args.finetune_fraction, trust_weight=args.trust_weight, max_residual=args.max_residual,
@@ -181,6 +195,25 @@ def cmd_surrogate_eval(args) -> int:
     from .surrogate.loop import evaluate_trained
 
     evaluate_trained(Path(args.run), _clips(args.clips), rnd=args.round, tag=args.tag)
+    return 0
+
+
+def cmd_online(args) -> int:
+    from . import online
+
+    run_dir = Path(args.dir)
+    if args.action == "prepare":
+        online.prepare(Path(args.protocol), run_dir)
+    elif args.action == "upload":
+        if not args.upload_cmd:
+            raise SystemExit("--upload-cmd is required (your own upload command; it gets {file})")
+        online.upload(run_dir, args.upload_cmd)
+    elif args.action == "download":
+        if not args.download_cmd:
+            raise SystemExit("--download-cmd is required (it gets {id} and {out})")
+        online.download(run_dir, args.download_cmd)
+    else:
+        online.score(run_dir)
     return 0
 
 
@@ -264,6 +297,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--g-loss", default="lpips", choices=["lpips", "dists", "lpips+dists"],
                    help="perceptual part of G's training loss (G is never judged by it)")
     p.add_argument("--pairs-cache", help="directory of round-0 pairs shared between runs (default: inside the run)")
+    p.add_argument("--estimator", default="emulator", choices=["emulator", "anchored"],
+                   help="anchored: real-anchored forward value through a frozen emulator (E7, docs/E7-plan.md)")
+    p.add_argument("--anchors", type=int, default=6, help="anchored: black-box anchor phases (one call per clip each)")
+    p.add_argument("--emulator-from", help="anchored: checkpoint whose E is reused, e.g. runs/p1_g_lpips_s0/round0.pt (default: train E here)")
+    p.add_argument("--front-from", help="anchored: put this optimize run's best theta in front of the black box "
+                   "(E9: G on top of theta)")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_surrogate)
 
@@ -273,6 +312,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--round", type=int, default=0)
     p.add_argument("--tag", default="eval")
     p.set_defaults(fn=cmd_surrogate_eval)
+
+    p = sub.add_parser("online", help="minimal online-platform validation in phases (docs/E15-protocol.md)")
+    p.add_argument("action", choices=["prepare", "upload", "download", "score"])
+    p.add_argument("--dir", required=True, help="run directory, e.g. runs/online/youtube (holds ledger.jsonl)")
+    p.add_argument("--protocol", default="docs/e15_protocol.json")
+    p.add_argument("--upload-cmd", help="shell command with {file}; must print the video id/URL on its last line")
+    p.add_argument("--download-cmd", help="shell command with {id} and {out}, e.g. yt-dlp ... -o {out} {id}")
+    p.set_defaults(fn=cmd_online)
 
     args = ap.parse_args(argv)
     return args.fn(args)

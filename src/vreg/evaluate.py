@@ -41,14 +41,17 @@ def evaluate(
     use_lpips: bool | None = None,
     keep_media: bool = False,
     judges=(),
+    upload_kbps: float | None = None,
 ) -> EvalResult:
     """``judges``: report-only metrics (``metrics.JUDGE_METRICS``) to compute as well.
 
-    The cache is keyed by theta only.  A cached result that lacks a requested judge is
+    The cache is keyed by theta (and by ``upload_kbps`` when a fixed upload bitrate is used; the
+    default upload is near-lossless CRF 10).  A cached result that lacks a requested judge is
     back-filled from the cached playback, without running the platform again.
     """
     params = precomp.normalize(params)
-    workdir = work_root / clip / params_key(params)
+    key = params_key(params) + (f"_u{int(round(upload_kbps))}k" if upload_kbps else "")
+    workdir = work_root / clip / key
     result_file = workdir / "result.json"
     if result_file.exists():
         data = json.loads(result_file.read_text())
@@ -59,7 +62,7 @@ def evaluate(
 
     workdir.mkdir(parents=True, exist_ok=True)
     t0 = time.perf_counter()
-    upload = precomp.apply(src, params, workdir / "upload.mp4")
+    upload = precomp.apply(src, params, workdir / "upload.mp4", upload_kbps=upload_kbps)
     up_info = ff.probe(upload)
     playback = platform.process(upload, workdir)
     m = metrics.compute(playback, src, use_lpips=use_lpips, judges=judges)

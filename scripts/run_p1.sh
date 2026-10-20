@@ -3,7 +3,7 @@
 # E23 confirmation. Resumable: optimize/surrogate runs continue under the same --name, round-0 pairs are
 # shared through runs/p1_pairs, and rescore reuses the evaluation cache. A failed step is logged and the
 # script moves on.
-# Usage: scripts/run_p1.sh [e19|e20|e21|e22|e23|e14|tables ...]   (default: e20 e21 tables e22 tables)
+# Usage: scripts/run_p1.sh [e19|e20|e21|e22|e23|e14|e14r|tables ...]   (default: e20 e21 tables e22 tables)
 # E23 is never part of the default: it needs docs/p1/decisions.json, written and committed after E22.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -92,6 +92,18 @@ e14() {
       --name "p1av1_sharp_$k"
     step uv run vreg rescore "runs/p1av1_sharp_$k" --clips "@$k:*" --tag av1
   done
+}
+
+# the rest of E14 (exploratory): the ugc_av1-tuned class theta back on ugc_strict, and P0's full GP-BO theta in both
+# directions, on the P1 clips
+e14r() {
+  for k in A B D; do
+    step uv run vreg rescore "runs/p1av1_sharp_$k" --clips "@$k:*" --tag strict --platform sim:ugc_strict
+  done
+  step uv run vreg rescore runs/strict_gp --clips '@*:*' --tag p1
+  step uv run vreg rescore runs/av1_gp --clips '@*:*' --tag p1
+  step uv run vreg rescore runs/strict_gp --clips '@*:*' --tag av1 --platform sim:ugc_av1
+  step uv run vreg rescore runs/av1_gp --clips '@*:*' --tag strict --platform sim:ugc_strict
 }
 
 tables() { step uv run python scripts/p1_tables.py; }
