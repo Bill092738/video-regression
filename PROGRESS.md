@@ -137,6 +137,7 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 | E9 | ✅ **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
 | E10 | ✅ (reframed as the validation budget, §12) **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
 | E11 | ✅ **Common creator recipe as a baseline**: lanczos ×2 + mild unsharp, at a fixed upload bitrate | creator recipe vs best θ | Shows what the optimiser adds over standard advice |
+| E24 | **Per-clip closed-loop feedback** ([plan](docs/E24-plan.md), not run yet): upload once, add half of the measured luma error back to the source, upload again; no emulator, no training | feedback (with and without mild unsharp) vs tier-only and the E11 recipes; split by rate headroom | Feedback on top of mild unsharp beats both recipes on class A (≥ 2 judges with a CI above 0, none below) |
 
 ### P1: simulator realism
 
