@@ -39,7 +39,7 @@ figures inside it. Edits made on Overleaf have to be copied back into this folde
   `e9_tables.py`, `e10.py`, `e11.py`, `e12.py`, `e24.py`; `scripts/reproduce_tables.sh` regenerates all of them
   and checks `PROGRESS.md`). If a number changes there, change it here. Do not round or "improve"
   numbers by hand.
-* The abstract is close to arXiv's 1920-character limit (about 1830 now, without the P2 sentence):
+* The abstract is close to arXiv's 1920-character limit (about 1770 now, without the P2 sentence):
   keep the P2 sentence short or trim elsewhere.
 * Claims about other papers (`related.tex`) must be checked against the paper itself, not against a
   summary.
