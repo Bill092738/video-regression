@@ -50,8 +50,9 @@ found to dominate the outcome:
         accepted (\cref{sec:results-p1}).
   \item An explanation of the negative result: the learned pre-compensation loses even on its
         training clips; anchoring its forward value on the black box closes most of the gap, and
-        what remains is metric specialisation, also when it starts from the tuned configuration
-        (\cref{sec:results-why}).
+        what remains is metric specialisation, also when it starts from the tuned configuration. A
+        per-clip correction from the measured playback error, with no emulator, does not beat
+        sharpening either (\cref{sec:results-why}).
   \item Practical guidance that needs no tuning: an untuned mild sharpening on natural low-motion
         content matches the tuned configuration, the upload bitrate matters more than any filter, and
         about 20 uploads suffice to validate the recipe on a new platform

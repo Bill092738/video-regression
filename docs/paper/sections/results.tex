@@ -1,8 +1,8 @@
 \section{Results}
 \label{sec:results}
-% Numbers in this section come from PROGRESS.md: section 6 (P0), 7 (P1), 8-13 (E7-E14). They are
+% Numbers in this section come from PROGRESS.md: section 6 (P0), 7 (P1), 8-13 (E7-E14), 14 (E24). They are
 % generated from the run outputs by scripts/p0_tables.py, p1_tables.py, e7_tables.py, e9_tables.py,
-% e10.py, e11.py and e12.py (scripts/reproduce_tables.sh regenerates all of them and checks
+% e10.py, e11.py, e12.py and e24.py (scripts/reproduce_tables.sh regenerates all of them and checks
 % PROGRESS.md). If a number changes there, change it here. Intervals are 95 % bootstrap CIs over clips.
 % All gains are signed so that positive means better, including LPIPS and DISTS (lower is better).
 
@@ -268,6 +268,48 @@ the independent judges for the training loss.
 \paragraph{Cost.}
 The learned route needs 300--500 black-box calls (emulator pairs plus anchors), against 195 for
 $\theta_A$ (15 trials on 13 clips). On an online platform every call is an upload.
+
+\paragraph{A correction without an emulator (E24).}
+Three properties of the learned route, rather than learning as such, could explain its loss: the
+per-frame emulator, a perceptual loss judged by fidelity metrics, and a correction of all three
+colour channels where sharpening changes luma only. A pre-registered follow-up removes all three
+with a per-clip closed loop that needs no emulator and no training. The clip is uploaded once, and
+half of the measured luma error is added back to the source,
+$\U = \operatorname{clip}\bigl(\X + \tfrac{1}{2}\operatorname{luma}(\X - \fp(\X))\bigr)$,
+which is then uploaded in its place; the cost is one extra upload of the clip itself. On the 27
+class-A clips (\cref{tab:e24}) the correction, with or without the mild unsharp in front of the
+black box, is better than both sharpening recipes on DISTS and worse than both on XPSNR, and it
+raises the median playback bitrate over tier-only by 28\,\% without the unsharp and 36\,\% with
+it, against 7\,\% and 14\,\% for the mild and default unsharp alone. By the pre-registered rule (at least two judges with an interval
+above zero and none below) it \emph{does not add} to either recipe. Its effect follows the rate
+headroom: on the 30 natural clips whose tier-only playback uses less than 90\,\% of the tier's rate
+cap, the correction alone gains $+1.76$ [$+1.22$, $+2.32$] SSIMULACRA2 over tier-only, and on the 22
+clips at the cap it loses $4.18$ [$3.61$, $4.72$]; 17 of these 22 clips are class B, so headroom
+and class are not separated. A full step (the whole error instead of half) is worse (SSIMULACRA2
+$-3.84$ versus tier-only on class A). A second step passes the rule against the mild unsharp but
+not against the default unsharp, at three uploads per clip; this comparison was exploratory. A
+correction driven by the black box's own fidelity error therefore does not beat sharpening either.
+
+\begin{table}[t]
+  \centering
+  \small
+  \caption{E24: per-clip luma feedback minus a sharpening recipe on the 27 class-A clips (mean
+  [95\,\% CI]). ``Feedback'' adds half of the luma error of a first upload to the source; ``mild +
+  feedback'' also applies the mild unsharp to both uploads.}
+  \label{tab:e24}
+  \setlength{\tabcolsep}{3pt}
+  \resizebox{\linewidth}{!}{%
+  \begin{tabular}{@{}llrrr@{}}
+    \toprule
+    Correction & minus & SSIMULACRA2 & DISTS & XPSNR \\
+    \midrule
+    Feedback        & mild unsharp    & $+0.71$ [$+0.05$, $+1.36$] & $+0.0049$ [$+0.0030$, $+0.0067$] & $-0.31$ [$-0.46$, $-0.15$] \\
+                    & default unsharp & $+1.08$ [$+0.63$, $+1.53$] & $+0.0041$ [$+0.0026$, $+0.0054$] & $-0.50$ [$-0.62$, $-0.38$] \\
+    Mild + feedback & mild unsharp    & $-0.06$ [$-1.02$, $+0.86$] & $+0.0050$ [$+0.0029$, $+0.0070$] & $-0.24$ [$-0.42$, $-0.04$] \\
+                    & default unsharp & $+0.32$ [$-0.36$, $+0.99$] & $+0.0042$ [$+0.0026$, $+0.0058$] & $-0.43$ [$-0.58$, $-0.28$] \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
 
 \subsection{Untuned recipes and the upload bitrate}
 \label{sec:results-recipes}

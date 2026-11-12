@@ -8,7 +8,8 @@ optimiser finds is not confirmed by metrics it did not optimise. What survives i
 the higher tier and near-losslessly, and add a mild sharpening only on natural low-motion content.
 No tuning is needed for this; FFmpeg's default unsharp already matches a configuration tuned with 195
 black-box calls. A learned pre-compensation did not add to it for any content class, even after its
-emulator gap was closed. Because whether sharpening helps depends on the platform's rate headroom, the
+emulator gap was closed, and neither did a per-clip correction computed from the measured playback
+error, which needs no emulator. Because whether sharpening helps depends on the platform's rate headroom, the
 recipe should be validated on each platform, which costs about 20 uploads.
 \pending{update with the real-platform results.}
 
