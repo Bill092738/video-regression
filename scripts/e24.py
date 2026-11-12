@@ -1,0 +1,160 @@
+"""E24 (docs/E24-plan.md): per-clip closed-loop feedback vs sharpening.
+
+    uv run python scripts/e24.py run      # every condition on every tested clip, with the judges (resumable)
+    uv run python scripts/e24.py tables   # -> runs/e24_tables.md
+
+Black box: sim:ugc_strict by default. Same classes, judges and bootstrap CIs as P1 and E11; the
+baselines (tier, r_mild, r_default) share E11's cache.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from pathlib import Path
+
+import numpy as np
+
+from vreg import classify, content, metrics
+from vreg.evaluate import evaluate
+from vreg.feedback import evaluate_feedback
+from vreg.optimize import cache_root
+from vreg.platform import PROFILES, make_platform
+
+RUNS = Path("runs")
+OUT = RUNS / "e24" / "results.json"
+TIER = {"upscale": 2.0}
+MILD = {"upscale": 2.0, "sharpen": 0.5, "sharpen_radius": 2.0}
+BASELINES = {"tier": TIER, "r_mild": MILD, "r_default": {"upscale": 2.0, "sharpen": 1.0, "sharpen_radius": 2.0}}
+# id -> (probe conditions whose playbacks are fed back, front end, alpha); fixed by the plan
+FEEDBACK = {
+    "fb": (("tier",), TIER, 0.5),
+    "fb_mild": (("r_mild",), MILD, 0.5),
+    "fb_a1": (("tier",), TIER, 1.0),
+    "fb_it2": (("tier", "fb"), TIER, 0.5),
+}
+ORDER = (*BASELINES, *FEEDBACK)
+UPLOADS = {"tier": 1, "r_mild": 1, "r_default": 1, "fb": 2, "fb_mild": 2, "fb_a1": 2, "fb_it2": 3}
+LABEL = {"tier": "tier-only", "r_mild": "×2 + mild unsharp 5×5 0.5", "r_default": "×2 + default unsharp 5×5 1.0",
+         "fb": "feedback α=0.5 (probe: tier-only)", "fb_mild": "mild unsharp + feedback α=0.5 (probe: mild unsharp)",
+         "fb_a1": "feedback α=1.0 (probe: tier-only)", "fb_it2": "feedback α=0.5, 2 steps"}
+COLS = ("composite", "ssimulacra2", "dists", "xpsnr")
+JUDGES = ("ssimulacra2", "dists", "xpsnr")
+PRIMARY = (("fb_mild", "r_mild"), ("fb_mild", "r_default"))
+CAPPED_AT = 0.9  # a clip is "rate-capped" if its tier-only playback uses at least this share of the tier's maxrate
+
+_spec = importlib.util.spec_from_file_location("p1_tables", Path(__file__).with_name("p1_tables.py"))
+p1 = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(p1)
+bootstrap, gains, fmt = p1.bootstrap, p1.gains, p1.fmt
+
+
+def results_file(platform: str = "sim:ugc_strict") -> Path:
+    return OUT if platform == "sim:ugc_strict" else OUT.with_name(f"results_{platform.split(':')[-1]}.json")
+
+
+def run(platform: str = "sim:ugc_strict", conditions=ORDER, clips_spec: str | None = None) -> None:
+    plat = make_platform(platform)
+    work = cache_root(plat)
+    out = results_file(platform)
+    names = classify.resolve(clips_spec) if clips_spec else list(classify.load()["clips"])
+    clips = content.ensure_clips(names, content.CLIPS_DIR)
+    res = json.loads(out.read_text()) if out.exists() else {}
+    out.parent.mkdir(parents=True, exist_ok=True)
+    for clip, src in clips.items():
+        row = res.setdefault(clip, {})
+        for cid in ORDER:  # in dependency order: a feedback condition needs its probes' playbacks
+            if cid not in conditions or (cid in row and all(j in row[cid] for j in JUDGES)):
+                continue
+            if cid in BASELINES:
+                r = evaluate(clip, src, BASELINES[cid], plat, work, judges=metrics.JUDGE_METRICS)
+                row[cid] = r.metrics | {"workdir": r.workdir}
+            else:
+                probes, front, alpha = FEEDBACK[cid]
+                missing = [p for p in probes if p not in row]
+                if missing:
+                    raise SystemExit(f"{clip}: {cid} needs {missing} first; include them in --conditions")
+                r = evaluate_feedback(clip, src, [Path(row[p]["workdir"]) / "playback.mp4" for p in probes], front,
+                                      alpha, plat, work, judges=metrics.JUDGE_METRICS)
+                row[cid] = r["metrics"] | {"workdir": r["workdir"], "mean_abs_residual": r["mean_abs_residual"]}
+            out.write_text(json.dumps(res, indent=2))
+        print(f"[e24 {platform}] {clip:22s} " + " ".join(
+            f"{c}={row[c].get('ssimulacra2', float('nan')):.1f}" for c in ORDER if c in row), flush=True)
+
+
+def adds(conf: dict, a: str, b: str, clips) -> tuple[dict, int, int]:
+    """E11's rule: a 'adds' over b if >= 2 judges have a CI above 0 and none has a CI below 0."""
+    sts = {m: bootstrap(gains(conf[a], conf[b], clips, m)) for m in COLS}
+    return sts, sum(sts[m][1] > 0 for m in JUDGES), sum(sts[m][2] < 0 for m in JUDGES)
+
+
+def tables(platform: str = "sim:ugc_strict") -> None:
+    res = json.loads(results_file(platform).read_text())
+    classes = classify.load()["clips"]
+    conf = {cid: {c: r[cid] for c, r in res.items() if cid in r} for cid in ORDER}
+    by_class = {k: [c for c in res if classes.get(c, {}).get("class") == k and "tier" in res[c]] for k in "ABD"}
+    profile = PROFILES[platform.split(":")[-1]]
+    cap = profile.tier_for(int(profile.playback_height * TIER["upscale"])).maxrate_kbps
+    out = ["# E24 tables (generated by scripts/e24.py)", "",
+           f"Black box {platform}. Positive = better; mean [95 % CI over clips]; bold = CI excludes 0.", ""]
+
+    out += ["## Every condition vs tier-only, every tested clip per class", "",
+            "| class | condition | uploads per clip | " + " | ".join(COLS) + " | playback bitrate vs tier-only (median) |",
+            "|---" * (len(COLS) + 4) + "|"]
+    for k, clips in by_class.items():
+        for cid in ORDER[1:]:
+            cl = [c for c in clips if c in conf[cid]]
+            if not cl:
+                continue
+            sts = [fmt(m, *bootstrap(gains(conf[cid], conf["tier"], cl, m))) for m in COLS]
+            ratio = np.median([conf[cid][c]["playback_kbps"] / conf["tier"][c]["playback_kbps"] for c in cl])
+            out.append(f"| {k} ({len(cl)}) | {LABEL[cid]} | {UPLOADS[cid]} | " + " | ".join(sts)
+                       + f" | {100 * (ratio - 1):+.0f} % |")
+    out.append("")
+
+    out += ["## Feedback − sharpening recipe, every tested clip per class", "",
+            "| class | comparison | " + " | ".join(COLS) + " | adds? |", "|---" * (len(COLS) + 3) + "|"]
+    verdict = {}
+    for k, clips in by_class.items():
+        for a in FEEDBACK:
+            for b in ("r_mild", "r_default"):
+                cl = [c for c in clips if c in conf[a] and c in conf[b]]
+                if not cl:
+                    continue
+                sts, up, down = adds(conf, a, b, cl)
+                verdict[(k, a, b)] = up >= 2 and down == 0
+                out.append(f"| {k} ({len(cl)}) | {LABEL[a]} − {LABEL[b]} | " + " | ".join(fmt(m, *sts[m]) for m in COLS)
+                           + f" | {'yes' if verdict[(k, a, b)] else 'no'} ({up} up, {down} down) |")
+    out.append("")
+    h1 = all(verdict.get(("A", a, b), False) for a, b in PRIMARY)
+    out += [f"**H1 (class A, {LABEL['fb_mild']} beats both recipes): {'confirmed' if h1 else 'not confirmed'}.**", ""]
+
+    out += [f"## H2: rate headroom (tier-only playback ≥ {CAPPED_AT:.0%} of the {cap} kbps cap = capped), natural clips", "",
+            "| group | condition − tier-only | " + " | ".join(COLS) + " |", "|---" * (len(COLS) + 2) + "|"]
+    natural = by_class["A"] + by_class["B"]
+    groups = {"capped": [c for c in natural if conf["tier"][c]["playback_kbps"] >= CAPPED_AT * cap],
+              "headroom": [c for c in natural if conf["tier"][c]["playback_kbps"] < CAPPED_AT * cap]}
+    for g, clips in groups.items():
+        for cid in ("r_mild", "fb", "fb_mild"):
+            cl = [c for c in clips if c in conf[cid]]
+            if cl:
+                out.append(f"| {g} ({len(cl)}) | {LABEL[cid]} | "
+                           + " | ".join(fmt(m, *bootstrap(gains(conf[cid], conf["tier"], cl, m))) for m in COLS) + " |")
+    out.append("")
+    (RUNS / "e24_tables.md").write_text("\n".join(out) + "\n")
+    print("\n".join(out))
+
+
+if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", nargs="?", default="tables", choices=["run", "tables"])
+    ap.add_argument("--platform", default="sim:ugc_strict")
+    ap.add_argument("--conditions", default=",".join(ORDER))
+    ap.add_argument("--clips", default=None, help="clip selector, e.g. @A:dev (default: every classified clip)")
+    a = ap.parse_args()
+    if a.cmd == "run":
+        run(a.platform, tuple(a.conditions.split(",")), a.clips)
+    else:
+        tables(a.platform)

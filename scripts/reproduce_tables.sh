@@ -14,5 +14,6 @@ step uv run python scripts/e9_tables.py
 step uv run python scripts/e11.py tables
 step uv run python scripts/e10.py
 step uv run python scripts/e12.py tables
+step uv run python scripts/e24.py tables
 uv run python scripts/check_progress_tables.py || fail=1
 exit $fail

@@ -137,6 +137,7 @@ earn its place. Success should be judged against the P1 gate, not against tier-o
 | E9 | ✅ **Hybrid**: BO for tier, grain and colour, then `G` for local detail on top of the chosen θ | θ alone vs `G` alone vs hybrid | Hybrid ≥ the best of the two on every natural clip |
 | E10 | ✅ (reframed as the validation budget, §12) **Trust-region BO** (BoTorch TuRBO tutorial, MIT) and BO warm-started from simulator results | GP-BO vs TuRBO vs warm-started BO, at budgets of 10, 20 and 40 trials | Reaches 90 % of the 40-trial gain within about 15 trials (this sets the real-platform budget) |
 | E11 | ✅ **Common creator recipe as a baseline**: lanczos ×2 + mild unsharp, at a fixed upload bitrate | creator recipe vs best θ | Shows what the optimiser adds over standard advice |
+| E24 | ✅ (H1 not confirmed, §14) **Per-clip closed-loop feedback** ([plan](docs/E24-plan.md)): upload once, add half of the measured luma error back to the source, upload again; no emulator, no training | feedback (with and without mild unsharp) vs tier-only and the E11 recipes; split by rate headroom | Feedback on top of mild unsharp beats both recipes on class A (≥ 2 judges with a CI above 0, none below) |
 
 ### P1: simulator realism
 
@@ -1172,3 +1173,111 @@ Plan, pre-registered before the run and amended before it after a smoke test:
     1440p route, but the −6 to −26 gap is large.
   * For E15 the practical point is that one probe pair, the same clip at 1.9 and 2.5 Mbps at
     720p, tells whether a platform has such a rule.
+
+## 14. E24 results: per-clip closed-loop luma feedback vs sharpening
+
+Plan, pre-registered before the run: [`docs/E24-plan.md`](docs/E24-plan.md). Nothing was changed
+after the plan: same α, conditions, clips, judges and rule.
+
+**Run.** Code `15784ba`, machine `bill-12-13th-ITX-D4L` (RTX 4060 8 GB, 30 GB RAM), 2026-11-12,
+black box `sim:ugc_strict`. All 77 classified clips (A 27, B 25, D 24, C 1), 4 feedback uploads
+each = 308 platform calls; the three baselines came from E11's cache (no new uploads).
+
+| step | command | clips | wall time | peak RSS |
+|---|---|---|---|---|
+| 1 | `scripts/e24.py run --clips @A:dev` | 7 | 15 min 42 s | 4.5 GB |
+| 2 | `scripts/e24.py run --clips @A` | 20 more | 44 min 40 s | 4.9 GB |
+| 3 | `scripts/e24.py run` | 50 more | 1 h 43 min 55 s | 4.7 GB |
+
+About 32 s per feedback upload; every step exited 0. Logs: `runs/p1_logs/run_e24_step{1,2,3}.log`;
+results: `runs/e24/results.json`; tables: `uv run python scripts/e24.py tables` → `runs/e24_tables.md`.
+Mean absolute change of the upload (8-bit levels): `fb` 1.78, `fb_mild` 1.76, `fb_a1` 3.52, `fb_it2` 3.18.
+
+### Every condition vs tier-only
+
+| class | condition | uploads per clip | composite | ssimulacra2 | dists | xpsnr | playback bitrate vs tier-only (median) |
+|---|---|---|---|---|---|---|---|
+| A (27) | ×2 + mild unsharp 5×5 0.5 | 1 | **+1.56 [+1.34, +1.79]** | **+0.44 [+0.08, +0.76]** | **+0.0022 [+0.0013, +0.0031]** | **+0.28 [+0.22, +0.34]** | +7 % |
+| A (27) | ×2 + default unsharp 5×5 1.0 | 1 | **+1.92 [+1.58, +2.27]** | +0.07 [-0.64, +0.68] | **+0.0029 [+0.0016, +0.0045]** | **+0.47 [+0.37, +0.59]** | +14 % |
+| A (27) | feedback α=0.5 (probe: tier-only) | 2 | **+1.32 [+0.69, +1.94]** | **+1.15 [+0.21, +2.03]** | **+0.0070 [+0.0046, +0.0096]** | -0.03 [-0.20, +0.16] | +28 % |
+| A (27) | mild unsharp + feedback α=0.5 (probe: mild unsharp) | 2 | **+2.26 [+1.41, +3.17]** | +0.38 [-0.87, +1.53] | **+0.0072 [+0.0045, +0.0098]** | +0.04 [-0.17, +0.26] | +36 % |
+| A (27) | feedback α=1.0 (probe: tier-only) | 2 | +0.88 [-0.52, +2.51] | **-3.84 [-5.52, -2.27]** | +0.0031 [-0.0011, +0.0071] | +0.13 [-0.08, +0.36] | +60 % |
+| A (27) | feedback α=0.5, 2 steps | 3 | **+2.11 [+0.83, +3.58]** | -0.41 [-1.97, +1.04] | **+0.0070 [+0.0033, +0.0105]** | **+0.54 [+0.38, +0.70]** | +50 % |
+| B (25) | ×2 + mild unsharp 5×5 0.5 | 1 | **+0.92 [+0.75, +1.08]** | **-1.22 [-1.79, -0.65]** | +0.0003 [-0.0006, +0.0011] | **+0.25 [+0.19, +0.33]** | +0 % |
+| B (25) | ×2 + default unsharp 5×5 1.0 | 1 | **+0.80 [+0.47, +1.10]** | **-2.97 [-3.93, -2.00]** | -0.0011 [-0.0029, +0.0005] | **+0.36 [+0.30, +0.42]** | +0 % |
+| B (25) | feedback α=0.5 (probe: tier-only) | 2 | **-0.73 [-1.38, -0.13]** | **-2.81 [-3.86, -1.71]** | -0.0008 [-0.0039, +0.0025] | +0.02 [-0.15, +0.17] | +0 % |
+| B (25) | mild unsharp + feedback α=0.5 (probe: mild unsharp) | 2 | -0.40 [-0.98, +0.19] | **-5.03 [-6.60, -3.38]** | -0.0024 [-0.0061, +0.0015] | +0.11 [-0.08, +0.27] | +0 % |
+| B (25) | feedback α=1.0 (probe: tier-only) | 2 | **-3.07 [-3.98, -2.12]** | **-10.47 [-12.55, -8.23]** | **-0.0115 [-0.0174, -0.0053]** | +0.08 [-0.10, +0.24] | +1 % |
+| B (25) | feedback α=0.5, 2 steps | 3 | **-1.63 [-2.45, -0.79]** | **-7.06 [-9.02, -5.00]** | **-0.0068 [-0.0122, -0.0013]** | **+0.32 [+0.24, +0.39]** | +1 % |
+| D (24) | ×2 + mild unsharp 5×5 0.5 | 1 | **+1.21 [+0.93, +1.49]** | **+1.33 [+0.39, +2.50]** | **+0.0019 [+0.0011, +0.0028]** | **+0.37 [+0.27, +0.48]** | +4 % |
+| D (24) | ×2 + default unsharp 5×5 1.0 | 1 | **+1.34 [+0.86, +1.81]** | +0.83 [-0.66, +2.35] | **+0.0023 [+0.0005, +0.0040]** | **+0.48 [+0.35, +0.61]** | +8 % |
+| D (24) | feedback α=0.5 (probe: tier-only) | 2 | **+1.52 [+0.45, +2.63]** | **+1.73 [+0.33, +3.18]** | **+0.0045 [+0.0014, +0.0078]** | **-1.30 [-2.71, -0.24]** | +7 % |
+| D (24) | mild unsharp + feedback α=0.5 (probe: mild unsharp) | 2 | **+2.43 [+1.38, +3.63]** | **+2.31 [+0.55, +4.15]** | **+0.0056 [+0.0023, +0.0093]** | **-1.17 [-2.60, -0.08]** | +9 % |
+| D (24) | feedback α=1.0 (probe: tier-only) | 2 | **+1.71 [+0.20, +3.49]** | -0.49 [-2.62, +1.63] | +0.0003 [-0.0043, +0.0051] | **-1.13 [-2.55, -0.05]** | +6 % |
+| D (24) | feedback α=0.5, 2 steps | 3 | **+2.51 [+1.11, +4.08]** | +1.49 [-0.48, +3.52] | +0.0036 [-0.0015, +0.0086] | -0.50 [-1.98, +0.50] | +10 % |
+
+### H1 and H1b (class A): feedback − sharpening recipe
+
+| class | comparison | composite | ssimulacra2 | dists | xpsnr | adds? |
+|---|---|---|---|---|---|---|
+| A (27) | feedback α=0.5 (probe: tier-only) − ×2 + mild unsharp 5×5 0.5 | -0.24 [-0.81, +0.32] | **+0.71 [+0.05, +1.36]** | **+0.0049 [+0.0030, +0.0067]** | **-0.31 [-0.46, -0.15]** | no (2 up, 1 down) |
+| A (27) | feedback α=0.5 (probe: tier-only) − ×2 + default unsharp 5×5 1.0 | **-0.60 [-1.16, -0.02]** | **+1.08 [+0.63, +1.53]** | **+0.0041 [+0.0026, +0.0054]** | **-0.50 [-0.62, -0.38]** | no (2 up, 1 down) |
+| A (27) | mild unsharp + feedback α=0.5 (probe: mild unsharp) − ×2 + mild unsharp 5×5 0.5 | +0.70 [-0.09, +1.55] | -0.06 [-1.02, +0.86] | **+0.0050 [+0.0029, +0.0070]** | **-0.24 [-0.42, -0.04]** | no (1 up, 1 down) |
+| A (27) | mild unsharp + feedback α=0.5 (probe: mild unsharp) − ×2 + default unsharp 5×5 1.0 | +0.34 [-0.43, +1.23] | +0.32 [-0.36, +0.99] | **+0.0042 [+0.0026, +0.0058]** | **-0.43 [-0.58, -0.28]** | no (1 up, 1 down) |
+| A (27) | feedback α=1.0 (probe: tier-only) − ×2 + mild unsharp 5×5 0.5 | -0.68 [-2.02, +0.93] | **-4.28 [-5.69, -2.92]** | +0.0009 [-0.0028, +0.0043] | -0.15 [-0.35, +0.06] | no (0 up, 1 down) |
+| A (27) | feedback α=1.0 (probe: tier-only) − ×2 + default unsharp 5×5 1.0 | -1.04 [-2.38, +0.61] | **-3.90 [-5.06, -2.78]** | +0.0001 [-0.0033, +0.0033] | **-0.34 [-0.51, -0.18]** | no (0 up, 2 down) |
+| A (27) | feedback α=0.5, 2 steps − ×2 + mild unsharp 5×5 0.5 | +0.55 [-0.69, +2.00] | -0.85 [-2.14, +0.39] | **+0.0048 [+0.0016, +0.0078]** | **+0.26 [+0.12, +0.40]** | yes (2 up, 0 down) |
+| A (27) | feedback α=0.5, 2 steps − ×2 + default unsharp 5×5 1.0 | +0.19 [-1.04, +1.70] | -0.48 [-1.51, +0.53] | **+0.0041 [+0.0012, +0.0067]** | +0.07 [-0.04, +0.16] | no (1 up, 0 down) |
+
+* **H1: not confirmed.** `fb_mild` is better than both recipes on DISTS and worse than both on
+  XPSNR, with SSIMULACRA2 unchanged (1 judge up, 1 down in both comparisons).
+* **H1b: not confirmed.** `fb` is better than mild unsharp on SSIMULACRA2 and DISTS but worse on
+  XPSNR (2 up, 1 down), and the rule allows no judge below 0.
+* The feedback conditions use more platform bits: the median playback bitrate over tier-only is
+  +28 % (`fb`) and +36 % (`fb_mild`) on class A, against +7 % and +14 % for the two recipes.
+
+### H2: rate headroom (natural clips, A + B)
+
+| group | condition − tier-only | composite | ssimulacra2 | dists | xpsnr |
+|---|---|---|---|---|---|
+| capped (22) | ×2 + mild unsharp 5×5 0.5 | **+0.80 [+0.64, +0.96]** | **-1.91 [-2.29, -1.53]** | +0.0001 [-0.0007, +0.0009] | **+0.22 [+0.17, +0.26]** |
+| capped (22) | feedback α=0.5 (probe: tier-only) | **-0.96 [-1.33, -0.57]** | **-4.18 [-4.72, -3.61]** | -0.0028 [-0.0056, +0.0002] | **+0.15 [+0.01, +0.25]** |
+| capped (22) | mild unsharp + feedback α=0.5 (probe: mild unsharp) | **-0.91 [-1.28, -0.50]** | **-7.01 [-7.94, -6.05]** | **-0.0048 [-0.0080, -0.0011]** | **+0.24 [+0.08, +0.36]** |
+| headroom (30) | ×2 + mild unsharp 5×5 0.5 | **+1.59 [+1.41, +1.77]** | **+0.78 [+0.67, +0.91]** | **+0.0021 [+0.0013, +0.0031]** | **+0.30 [+0.23, +0.37]** |
+| headroom (30) | feedback α=0.5 (probe: tier-only) | **+1.28 [+0.54, +1.93]** | **+1.76 [+1.22, +2.32]** | **+0.0077 [+0.0055, +0.0099]** | -0.11 [-0.29, +0.07] |
+| headroom (30) | mild unsharp + feedback α=0.5 (probe: mild unsharp) | **+2.37 [+1.60, +3.16]** | **+1.30 [+0.61, +1.98]** | **+0.0080 [+0.0056, +0.0102]** | -0.05 [-0.26, +0.17] |
+
+* **H2: confirmed.** On the 22 clips at the rate cap, feedback is worse than tier-only on
+  SSIMULACRA2 (−4.18 for `fb`, −7.01 for `fb_mild`) and on the composite; on the 30 clips with
+  headroom it is better on SSIMULACRA2 and DISTS. XPSNR does not follow this split.
+* The capped group is mostly class B (17 of 22 clips), so headroom and class are not separated here.
+
+### Exploratory
+
+Classes B and D, α = 0.5 conditions:
+
+| class | comparison | composite | ssimulacra2 | dists | xpsnr | adds? |
+|---|---|---|---|---|---|---|
+| B (25) | feedback α=0.5 (probe: tier-only) − ×2 + mild unsharp 5×5 0.5 | **-1.65 [-2.32, -1.03]** | **-1.59 [-2.23, -0.93]** | -0.0011 [-0.0038, +0.0017] | **-0.23 [-0.45, -0.06]** | no (0 up, 2 down) |
+| B (25) | feedback α=0.5 (probe: tier-only) − ×2 + default unsharp 5×5 1.0 | **-1.53 [-2.04, -1.04]** | +0.16 [-0.41, +0.70] | +0.0003 [-0.0028, +0.0034] | **-0.34 [-0.51, -0.19]** | no (0 up, 1 down) |
+| B (25) | mild unsharp + feedback α=0.5 (probe: mild unsharp) − ×2 + mild unsharp 5×5 0.5 | **-1.31 [-1.89, -0.75]** | **-3.81 [-4.90, -2.66]** | -0.0027 [-0.0059, +0.0006] | -0.15 [-0.37, +0.03] | no (0 up, 1 down) |
+| B (25) | mild unsharp + feedback α=0.5 (probe: mild unsharp) − ×2 + default unsharp 5×5 1.0 | **-1.20 [-1.67, -0.74]** | **-2.06 [-2.90, -1.22]** | -0.0013 [-0.0047, +0.0021] | **-0.26 [-0.44, -0.10]** | no (0 up, 2 down) |
+| D (24) | feedback α=0.5 (probe: tier-only) − ×2 + mild unsharp 5×5 0.5 | +0.30 [-0.77, +1.41] | +0.39 [-1.24, +1.97] | +0.0025 [-0.0004, +0.0056] | **-1.68 [-3.13, -0.59]** | no (0 up, 1 down) |
+| D (24) | feedback α=0.5 (probe: tier-only) − ×2 + default unsharp 5×5 1.0 | +0.18 [-0.79, +1.15] | +0.90 [-0.65, +2.52] | +0.0022 [-0.0004, +0.0047] | **-1.78 [-3.24, -0.67]** | no (0 up, 1 down) |
+| D (24) | mild unsharp + feedback α=0.5 (probe: mild unsharp) − ×2 + mild unsharp 5×5 0.5 | **+1.22 [+0.18, +2.36]** | +0.98 [-0.53, +2.50] | **+0.0037 [+0.0004, +0.0072]** | **-1.54 [-3.02, -0.44]** | no (1 up, 1 down) |
+| D (24) | mild unsharp + feedback α=0.5 (probe: mild unsharp) − ×2 + default unsharp 5×5 1.0 | **+1.09 [+0.15, +2.10]** | **+1.49 [+0.09, +3.06]** | **+0.0033 [+0.0006, +0.0062]** | **-1.65 [-3.14, -0.52]** | no (2 up, 1 down) |
+
+* **Class B:** feedback is worse than both recipes (and worse than tier-only on SSIMULACRA2).
+* **Class D:** DISTS and SSIMULACRA2 tend up, XPSNR falls by 1.2 to 1.8 dB; no comparison passes the rule.
+* **α = 1.0 (`fb_a1`):** worse than α = 0.5 everywhere (class A SSIMULACRA2 −3.84 vs tier-only,
+  bitrate +60 %), as in the pilot.
+* **Two steps (`fb_it2`):** on class A it passes the rule against mild unsharp (DISTS and XPSNR up,
+  none down) but not against the default unsharp (1 up), at 3 uploads per clip and +50 % playback
+  bitrate. It is exploratory and one of the 24 comparisons in that table, so it is not counted as evidence.
+
+### Verdict
+
+H1 fails, so by the plan there is no E25: a fidelity-driven per-clip correction does not beat
+sharpening on `sim:ugc_strict` either. What it does is move the judges in different directions
+(DISTS up, XPSNR down) while spending more platform bits, and it hurts where the rate cap binds.
+This strengthens the P1 conclusion and changes no earlier verdict.
