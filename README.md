@@ -337,6 +337,8 @@ compared and what counts as success. In short:
 * **P1-later, method improvements.** E7 (real-anchored estimator) and E9 (`G` on top of θ) are
   done, and the learned-`G` line is closed with a negative result. Remaining:
   * an emulator ensemble or a conservative emulator;
+  * a per-clip closed-loop correction that needs no emulator (E24, done: it does not beat
+    sharpening, PROGRESS §14; [`docs/E24-plan.md`](docs/E24-plan.md), `scripts/e24.py`);
 * **P1, simulator realism:**
   * AV1 film-grain synthesis;
   * several renditions.
@@ -367,15 +369,15 @@ compared and what counts as success. In short:
 
 ```
 src/vreg/       ff.py content.py features.py classify.py platform.py precomp.py metrics.py evaluate.py
-                optimize.py rescore.py report.py online.py cli.py
+                optimize.py rescore.py report.py online.py feedback.py cli.py
 src/vreg/surrogate/  models.py loop.py
 scripts/        setup_env.sh run_experiments.sh run_p0.sh p0_tables.py run_p1.sh p1_tables.py
                 make_screen_clips.py run_e7.sh e7_tables.py run_e9.sh e9_tables.py e10.py e11.py e12.py
-                e17_prepare.py e17_page.html e17_analyze.py reproduce_tables.sh check_progress_tables.py
+                e17_prepare.py e17_page.html e17_analyze.py e24.py reproduce_tables.sh check_progress_tables.py
 tests/          tiny-clip unit tests (run in GitHub Actions)
 docs/img/       figures used in this README
 docs/related-work.md  prior work, overlap check, reusable code and licenses
-docs/P0-plan.md, docs/P1-plan.md, docs/E7..E17-plan.md  pre-registered plans (E17 not run yet)
+docs/P0-plan.md, docs/P1-plan.md, docs/E7..E24-plan.md  pre-registered plans (E17 not run yet)
 docs/E15-protocol.md, docs/e15_protocol.json  the minimal real-platform validation (23 uploads)
 docs/CREDITS.md third-party test material and its terms
 docs/p1/        P1 clip manifest (licenses), features, frozen classes and splits, pre-E23 decisions

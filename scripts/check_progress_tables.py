@@ -11,7 +11,8 @@ import sys
 from pathlib import Path
 
 GENERATED = ("runs/p0_tables.md", "runs/p1_tables.md", "runs/e7_tables.md", "runs/e9_tables.md",
-             "runs/e10_tables.md", "runs/e11_tables.md", "runs/e12_tables.md")
+             "runs/e10_tables.md", "runs/e11_tables.md", "runs/e12_tables.md",
+             "runs/e24_tables.md")
 
 
 def rows(text: str) -> list[str]:
